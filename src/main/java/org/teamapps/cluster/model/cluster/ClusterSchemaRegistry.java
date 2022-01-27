@@ -40,6 +40,7 @@ public class ClusterSchemaRegistry implements MessageDecoderRegistry {
 		MessageField f27 = SCHEMA.addObject(27, "clusterFileTransferResponse", null);
 		SCHEMA.addField(f27, 28, "fileId", null, MessageFieldType.STRING, MessageFieldContentType.GENERIC, null);
 		SCHEMA.addField(f27, 29, "receivedData", null, MessageFieldType.LONG, MessageFieldContentType.GENERIC, null);
+		MessageField f30 = SCHEMA.addObject(30, "keepAliveMessage", null);
 
 		DECODERS.put(101001, ClusterNodeData.getMessageDecoder());
 		DECODERS.put(101007, ClusterNodeInfo.getMessageDecoder());
@@ -47,6 +48,7 @@ public class ClusterSchemaRegistry implements MessageDecoderRegistry {
 		DECODERS.put(101016, ServiceClusterResponse.getMessageDecoder());
 		DECODERS.put(101021, ClusterFileTransfer.getMessageDecoder());
 		DECODERS.put(101027, ClusterFileTransferResponse.getMessageDecoder());
+		DECODERS.put(101030, KeepAliveMessage.getMessageDecoder());
 
     }
 

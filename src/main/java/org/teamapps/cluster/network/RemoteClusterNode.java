@@ -6,17 +6,15 @@ import org.teamapps.cluster.model.cluster.ClusterNodeData;
 
 import java.lang.invoke.MethodHandles;
 import java.net.Socket;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class RemoteClusterNode extends ClusterNode implements ConnectionHandler {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
-	private static ScheduledExecutorService scheduledExecutorService = Executors.newScheduledThreadPool(3);
+	private static final ScheduledExecutorService scheduledExecutorService = Executors.newScheduledThreadPool(3);
 
 	private final ClusterNodeMessageHandler clusterNodeMessageHandler;
 	private final boolean outgoing;
@@ -24,13 +22,15 @@ public class RemoteClusterNode extends ClusterNode implements ConnectionHandler 
 	private Connection connection;
 	private volatile boolean connected;
 	private int retries;
-	private List<String> availableServices = new ArrayList<>();
+	private long lastMessageTimestamp;
+	private byte[] keepAliveMessage;
 
 	public RemoteClusterNode(ClusterNodeMessageHandler clusterNodeMessageHandler, Socket socket) {
 		this.clusterNodeMessageHandler = clusterNodeMessageHandler;
 		this.outgoing = false;
 		this.nodeAddress = new NodeAddress(socket.getInetAddress().getHostAddress(), socket.getPort());
 		this.connection = new Connection(this, socket, nodeAddress);
+		init();
 	}
 
 	public RemoteClusterNode(ClusterNodeMessageHandler clusterNodeMessageHandler, NodeAddress nodeAddress) {
@@ -38,6 +38,20 @@ public class RemoteClusterNode extends ClusterNode implements ConnectionHandler 
 		this.outgoing = true;
 		this.nodeAddress = nodeAddress;
 		createOutgoingConnection();
+		init();
+	}
+
+	private void init() {
+		keepAliveMessage = clusterNodeMessageHandler.getKeepAliveMessage();
+		scheduledExecutorService.scheduleAtFixedRate(() -> {
+			if (connected && System.currentTimeMillis() - lastMessageTimestamp > 60_000) {
+				sendKeepAlive();
+			}
+		}, 90, 90, TimeUnit.SECONDS);
+	}
+
+	private void sendKeepAlive() {
+		sendMessage(keepAliveMessage);
 	}
 
 	private void createOutgoingConnection() {
@@ -47,18 +61,20 @@ public class RemoteClusterNode extends ClusterNode implements ConnectionHandler 
 
 	public void sendMessage(byte[] bytes) {
 		if (bytes != null && connection != null) {
+			lastMessageTimestamp = System.currentTimeMillis();
 			connection.writeMessage(bytes);
 		}
 	}
 
 	@Override
 	public void handleMessage(byte[] bytes) {
+		lastMessageTimestamp = System.currentTimeMillis();
 		clusterNodeMessageHandler.handleMessage(this, bytes);
 	}
 
 	@Override
 	public void handleConnectionClosed() {
-		LOGGER.info("Remote connection closed: {}, {}",outgoing, nodeAddress);
+		LOGGER.info("Remote connection closed: {}, {}", outgoing, nodeAddress);
 		connected = false;
 		connection = null;
 		retries++;
@@ -84,19 +100,11 @@ public class RemoteClusterNode extends ClusterNode implements ConnectionHandler 
 		return nodeAddress;
 	}
 
-	public List<String> getAvailableServices() {
-		return availableServices;
-	}
-
 	public void setClusterNodeData(ClusterNodeData nodeData) {
 		if (getNodeId() == null) {
 			setNodeId(nodeData.getNodeId());
 		}
-		if (nodeData.getAvailableServices() != null) {
-			availableServices = Arrays.asList(nodeData.getAvailableServices());
-		} else {
-			availableServices = Collections.emptyList();
-		}
+		setServices(nodeData.getAvailableServices() != null ? Arrays.asList(nodeData.getAvailableServices()) : Collections.emptyList());
 	}
 
 	public ClusterNodeData getClusterNodeData() {
@@ -104,7 +112,7 @@ public class RemoteClusterNode extends ClusterNode implements ConnectionHandler 
 				.setNodeId(getNodeId())
 				.setHost(getNodeAddress().getHost())
 				.setPort(getNodeAddress().getPort())
-				.setAvailableServices(getAvailableServices().toArray(new String[0]));
+				.setAvailableServices(getServices().toArray(new String[0]));
 	}
 
 	@Override
@@ -114,7 +122,7 @@ public class RemoteClusterNode extends ClusterNode implements ConnectionHandler 
 				", outgoing=" + outgoing +
 				", connected=" + connected +
 				", retries=" + retries +
-				", availableServices=" + availableServices +
+				", availableServices=" + getServices() +
 				'}';
 	}
 }

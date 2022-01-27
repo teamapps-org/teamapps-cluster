@@ -1,4 +1,4 @@
-package org.teamapps.cluster.network;
+package org.teamapps.cluster.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,6 +8,10 @@ import org.teamapps.cluster.dto.Message;
 import org.teamapps.cluster.dto.MessageDecoder;
 import org.teamapps.cluster.dto.MessageField;
 import org.teamapps.cluster.model.cluster.*;
+import org.teamapps.cluster.network.ClusterNodeMessageHandler;
+import org.teamapps.cluster.network.LocalClusterNode;
+import org.teamapps.cluster.network.NodeAddress;
+import org.teamapps.cluster.network.RemoteClusterNode;
 import org.teamapps.cluster.service.AbstractClusterService;
 import org.teamapps.cluster.service.ServiceRegistry;
 import org.teamapps.cluster.service.Utils;
@@ -27,7 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-public class ClusterService extends Thread implements ClusterNodeMessageHandler, FileProvider, ServiceRegistry {
+public class TeamAppsCluster extends Thread implements ClusterNodeMessageHandler, FileProvider, ServiceRegistry {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
 
@@ -65,11 +69,11 @@ public class ClusterService extends Thread implements ClusterNodeMessageHandler,
 		}
 	});
 
-	public ClusterService(String clusterSecret, int localPort, NodeAddress... knownNodes) {
+	public TeamAppsCluster(String clusterSecret, int localPort, NodeAddress... knownNodes) {
 		this(clusterSecret, localPort, null, knownNodes);
 	}
 
-	public ClusterService(String clusterSecret, int localPort, File tempDir, NodeAddress... knownNodes) {
+	public TeamAppsCluster(String clusterSecret, int localPort, File tempDir, NodeAddress... knownNodes) {
 		super("cluster-server-socket");
 		this.clusterSecret = clusterSecret;
 		this.aesCipher = new AesCipher(clusterSecret);
@@ -100,7 +104,7 @@ public class ClusterService extends Thread implements ClusterNodeMessageHandler,
 	}
 
 	public RemoteClusterNode getRandomServiceProvider(String serviceName) {
-		List<RemoteClusterNode> nodesWithService = clusterServices.getOrDefault(serviceName, Collections.emptyList()).stream().filter(clusterNode -> clusterNode.isConnected()).collect(Collectors.toList());
+		List<RemoteClusterNode> nodesWithService = clusterServices.getOrDefault(serviceName, Collections.emptyList()).stream().filter(RemoteClusterNode::isConnected).collect(Collectors.toList());
 		return Utils.randomListEntry(nodesWithService);
 	}
 
@@ -157,7 +161,7 @@ public class ClusterService extends Thread implements ClusterNodeMessageHandler,
 	private void recreateClusterServiceMap() {
 		Map<String, List<RemoteClusterNode>> serviceMap = new HashMap<>();
 		for (RemoteClusterNode clusterNode : remoteNodes.values()) {
-			for (String service : clusterNode.getAvailableServices()) {
+			for (String service : clusterNode.getServices()) {
 				serviceMap.putIfAbsent(service, new ArrayList<>());
 				serviceMap.get(service).add(clusterNode);
 			}
@@ -251,6 +255,16 @@ public class ClusterService extends Thread implements ClusterNodeMessageHandler,
 	@Override
 	public byte[] createInitMessage() {
 		return createInfoMessage(false);
+	}
+
+	@Override
+	public byte[] getKeepAliveMessage() {
+		try {
+			return aesCipher.encrypt(new KeepAliveMessage().toBytes());
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return null;
 	}
 
 	private byte[] createInfoMessage(boolean response) {

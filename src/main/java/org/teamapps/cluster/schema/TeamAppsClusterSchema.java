@@ -53,7 +53,7 @@ public class TeamAppsClusterSchema {
 		schema.addTextField(clusterFileTransferResponse, "fileId");
 		schema.addLongField(clusterFileTransferResponse, "receivedData");
 
-
+		MessageField keepAliveMessage = schema.addObject("keepAliveMessage");
 
 		System.out.println(schema);
 		PojoBuilder.createPojos(schema, new File("./src/main/java"));

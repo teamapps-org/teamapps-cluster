@@ -6,4 +6,6 @@ public interface ClusterNodeMessageHandler {
 
 	byte[] createInitMessage();
 
+	byte[] getKeepAliveMessage();
+
 }
