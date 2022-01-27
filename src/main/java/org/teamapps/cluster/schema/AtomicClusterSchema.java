@@ -14,7 +14,7 @@ public class AtomicClusterSchema {
 	}
 
 	private static void createSchema() throws IOException {
-		MessageSchema schema = new MessageSchema(100, "schema", "org.teamapps.cluster.model");
+		MessageSchema schema = new MessageSchema(100, "atomixSchemaRegistry", "org.teamapps.cluster.model.atomix");
 
 		MessageField fileTransfer = schema.addObject("fileTransfer");
 		schema.addTextField(fileTransfer, "fileId");

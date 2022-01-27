@@ -1,4 +1,4 @@
-package org.teamapps.cluster.model;
+package org.teamapps.cluster.model.atomix;
 
 import org.teamapps.cluster.dto.*;
 import org.slf4j.Logger;
@@ -38,27 +38,27 @@ public class FileTransfer extends Message {
     public final static int ROOT_FIELD_ID = 100001;
 
 	public FileTransfer() {
-		super(Schema.SCHEMA.getFieldById(100001), new ArrayList<>());
+		super(AtomixSchemaRegistry.SCHEMA.getFieldById(100001), new ArrayList<>());
 	}
 
 	public FileTransfer(ByteBuffer buf) {
-		super(buf, Schema.SCHEMA);
+		super(buf, AtomixSchemaRegistry.SCHEMA);
 	}
 
 	public FileTransfer(DataInputStream dis) throws IOException {
-		super(dis, Schema.SCHEMA);
+		super(dis, AtomixSchemaRegistry.SCHEMA);
 	}
 
 	public FileTransfer(DataInputStream dis, FileProvider fileProvider) throws IOException {
-		super(dis, Schema.SCHEMA, fileProvider, Schema.REGISTRY);
+		super(dis, AtomixSchemaRegistry.SCHEMA, fileProvider, AtomixSchemaRegistry.REGISTRY);
 	}
 
 	public FileTransfer(byte[] bytes) throws IOException {
-		super(bytes, Schema.SCHEMA);
+		super(bytes, AtomixSchemaRegistry.SCHEMA);
 	}
 
 	public FileTransfer(byte[] bytes, FileProvider fileProvider) throws IOException {
-		super(bytes, Schema.SCHEMA, fileProvider, Schema.REGISTRY);
+		super(bytes, AtomixSchemaRegistry.SCHEMA, fileProvider, AtomixSchemaRegistry.REGISTRY);
 	}
 
 	public String getFileId() {

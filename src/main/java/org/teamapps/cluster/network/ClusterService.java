@@ -7,7 +7,7 @@ import org.teamapps.cluster.dto.FileProvider;
 import org.teamapps.cluster.dto.Message;
 import org.teamapps.cluster.dto.MessageDecoder;
 import org.teamapps.cluster.dto.MessageField;
-import org.teamapps.cluster.model2.*;
+import org.teamapps.cluster.model.cluster.*;
 import org.teamapps.cluster.service.AbstractClusterService;
 import org.teamapps.cluster.service.ServiceRegistry;
 import org.teamapps.cluster.service.Utils;
@@ -178,7 +178,7 @@ public class ClusterService extends Thread implements ClusterNodeMessageHandler,
 			try {
 				byte[] data = aesCipher.decrypt(bytes);
 				int messageRootFieldId = Message.getMessageFieldId(data);
-				MessageField messageField = Schema2.SCHEMA.getFieldById(messageRootFieldId);
+				MessageField messageField = ClusterSchemaRegistry.SCHEMA.getFieldById(messageRootFieldId);
 				LOGGER.debug("Handle message: id: {}, field: {}, size: {}, node: {}", messageRootFieldId, messageField, bytes.length, clusterNode);
 				switch (messageRootFieldId) {
 					case ClusterNodeInfo.ROOT_FIELD_ID -> handleClusterNodeInfo(new ClusterNodeInfo(data, this), clusterNode);

@@ -1,4 +1,4 @@
-package org.teamapps.cluster.model2;
+package org.teamapps.cluster.model.cluster;
 
 import org.teamapps.cluster.dto.*;
 import org.slf4j.Logger;
@@ -38,27 +38,27 @@ public class ClusterFileTransfer extends Message {
     public final static int ROOT_FIELD_ID = 101021;
 
 	public ClusterFileTransfer() {
-		super(Schema2.SCHEMA.getFieldById(101021), new ArrayList<>());
+		super(ClusterSchemaRegistry.SCHEMA.getFieldById(101021), new ArrayList<>());
 	}
 
 	public ClusterFileTransfer(ByteBuffer buf) {
-		super(buf, Schema2.SCHEMA);
+		super(buf, ClusterSchemaRegistry.SCHEMA);
 	}
 
 	public ClusterFileTransfer(DataInputStream dis) throws IOException {
-		super(dis, Schema2.SCHEMA);
+		super(dis, ClusterSchemaRegistry.SCHEMA);
 	}
 
 	public ClusterFileTransfer(DataInputStream dis, FileProvider fileProvider) throws IOException {
-		super(dis, Schema2.SCHEMA, fileProvider, Schema2.REGISTRY);
+		super(dis, ClusterSchemaRegistry.SCHEMA, fileProvider, ClusterSchemaRegistry.REGISTRY);
 	}
 
 	public ClusterFileTransfer(byte[] bytes) throws IOException {
-		super(bytes, Schema2.SCHEMA);
+		super(bytes, ClusterSchemaRegistry.SCHEMA);
 	}
 
 	public ClusterFileTransfer(byte[] bytes, FileProvider fileProvider) throws IOException {
-		super(bytes, Schema2.SCHEMA, fileProvider, Schema2.REGISTRY);
+		super(bytes, ClusterSchemaRegistry.SCHEMA, fileProvider, ClusterSchemaRegistry.REGISTRY);
 	}
 
 	public String getFileId() {

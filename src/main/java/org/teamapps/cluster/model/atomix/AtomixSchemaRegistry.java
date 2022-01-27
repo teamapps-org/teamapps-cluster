@@ -1,13 +1,13 @@
-package org.teamapps.cluster.model;
+package org.teamapps.cluster.model.atomix;
 
 import org.teamapps.cluster.dto.*;
 import java.util.HashMap;
 import java.util.Map;
 
-public class Schema implements MessageDecoderRegistry {
+public class AtomixSchemaRegistry implements MessageDecoderRegistry {
 
-    public static MessageSchema SCHEMA = new MessageSchema(100, "schema", "org.teamapps.cluster.model");
-    public static MessageDecoderRegistry REGISTRY = new Schema();
+    public static MessageSchema SCHEMA = new MessageSchema(100, "atomixSchemaRegistry", "org.teamapps.cluster.model.atomix");
+    public static MessageDecoderRegistry REGISTRY = new AtomixSchemaRegistry();
 	private final static Map<Integer, MessageDecoder<? extends Message>> DECODERS = new HashMap<>();
 
     static {

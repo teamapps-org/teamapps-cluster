@@ -14,7 +14,7 @@ public class TeamAppsClusterSchema {
 	}
 
 	private static void createSchema() throws IOException {
-		MessageSchema schema = new MessageSchema(101, "schema2", "org.teamapps.cluster.model2");
+		MessageSchema schema = new MessageSchema(101, "clusterSchemaRegistry", "org.teamapps.cluster.model.cluster");
 
 		MessageField clusterNodeData = schema.addObject("clusterNodeData");
 		schema.addTextField(clusterNodeData, "nodeId");

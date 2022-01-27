@@ -2,7 +2,7 @@ package org.teamapps.cluster.network;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.teamapps.cluster.model2.ClusterNodeData;
+import org.teamapps.cluster.model.cluster.ClusterNodeData;
 
 import java.lang.invoke.MethodHandles;
 import java.net.Socket;

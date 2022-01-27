@@ -1,4 +1,4 @@
-package org.teamapps.cluster.model2;
+package org.teamapps.cluster.model.cluster;
 
 import org.teamapps.cluster.dto.*;
 import org.slf4j.Logger;
@@ -38,27 +38,27 @@ public class ClusterNodeInfo extends Message {
     public final static int ROOT_FIELD_ID = 101007;
 
 	public ClusterNodeInfo() {
-		super(Schema2.SCHEMA.getFieldById(101007), new ArrayList<>());
+		super(ClusterSchemaRegistry.SCHEMA.getFieldById(101007), new ArrayList<>());
 	}
 
 	public ClusterNodeInfo(ByteBuffer buf) {
-		super(buf, Schema2.SCHEMA);
+		super(buf, ClusterSchemaRegistry.SCHEMA);
 	}
 
 	public ClusterNodeInfo(DataInputStream dis) throws IOException {
-		super(dis, Schema2.SCHEMA);
+		super(dis, ClusterSchemaRegistry.SCHEMA);
 	}
 
 	public ClusterNodeInfo(DataInputStream dis, FileProvider fileProvider) throws IOException {
-		super(dis, Schema2.SCHEMA, fileProvider, Schema2.REGISTRY);
+		super(dis, ClusterSchemaRegistry.SCHEMA, fileProvider, ClusterSchemaRegistry.REGISTRY);
 	}
 
 	public ClusterNodeInfo(byte[] bytes) throws IOException {
-		super(bytes, Schema2.SCHEMA);
+		super(bytes, ClusterSchemaRegistry.SCHEMA);
 	}
 
 	public ClusterNodeInfo(byte[] bytes, FileProvider fileProvider) throws IOException {
-		super(bytes, Schema2.SCHEMA, fileProvider, Schema2.REGISTRY);
+		super(bytes, ClusterSchemaRegistry.SCHEMA, fileProvider, ClusterSchemaRegistry.REGISTRY);
 	}
 
 	public boolean getResponse() {

@@ -6,11 +6,8 @@ import io.atomix.cluster.Node;
 import io.atomix.cluster.discovery.BootstrapDiscoveryProvider;
 import io.atomix.cluster.messaging.ClusterCommunicationService;
 import io.atomix.core.Atomix;
-import io.atomix.core.election.LeaderElection;
 import io.atomix.primitive.partition.MemberGroupStrategy;
 import io.atomix.protocols.backup.partition.PrimaryBackupPartitionGroup;
-import io.atomix.protocols.raft.MultiRaftProtocol;
-import io.atomix.protocols.raft.ReadConsistency;
 import io.atomix.protocols.raft.partition.RaftPartitionGroup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,10 +16,9 @@ import org.teamapps.cluster.crypto.ShaHash;
 import org.teamapps.cluster.dto.FileProvider;
 import org.teamapps.cluster.dto.Message;
 import org.teamapps.cluster.dto.MessageDecoder;
-import org.teamapps.cluster.model.ClusterMessage;
-import org.teamapps.cluster.model.FileTransfer;
-import org.teamapps.cluster.model.FileTransferResponse;
-import org.teamapps.cluster.network.NodeAddress;
+import org.teamapps.cluster.model.atomix.ClusterMessage;
+import org.teamapps.cluster.model.atomix.FileTransfer;
+import org.teamapps.cluster.model.atomix.FileTransferResponse;
 import org.teamapps.common.util.ExceptionUtil;
 import org.teamapps.event.Event;
 import reactor.core.publisher.Mono;
@@ -38,7 +34,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
-public class TeamAppsCluster implements FileProvider, ServiceRegistry {
+public class AtomixCluster implements FileProvider, ServiceRegistry {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
 	private static final String CLUSTER_REQUEST_CHANNEL = "cr";
@@ -70,11 +66,11 @@ public class TeamAppsCluster implements FileProvider, ServiceRegistry {
 	private ClusterCommunicationService communicationService;
 	private Member localMember;
 
-	public TeamAppsCluster(String clusterKey) throws IOException {
+	public AtomixCluster(String clusterKey) throws IOException {
 		this(clusterKey, null);
 	}
 
-	public TeamAppsCluster(String clusterKey, File tempDir) throws IOException {
+	public AtomixCluster(String clusterKey, File tempDir) throws IOException {
 		this.clusterId = ShaHash.createHash("ID-" + clusterKey);
 		this.aesCipher = new AesCipher(clusterKey);
 		this.fileTransferPath = tempDir != null ? tempDir : Files.createTempFile("temp", "temp").getParent().toFile();
