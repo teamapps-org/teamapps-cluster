@@ -3,19 +3,18 @@ package org.teamapps.cluster.schema;
 import org.teamapps.cluster.dto.MessageField;
 import org.teamapps.cluster.dto.MessageSchema;
 import org.teamapps.cluster.dto.PojoBuilder;
-import org.teamapps.cluster.dto.ServiceSchema;
 
 import java.io.File;
 import java.io.IOException;
 
-public class ClusterSchema {
+public class AtomicClusterSchema {
 
 	public static void main(String[] args) throws IOException {
 		createSchema();
 	}
 
 	private static void createSchema() throws IOException {
-		MessageSchema schema = new MessageSchema(100, "schema");
+		MessageSchema schema = new MessageSchema(100, "schema", "org.teamapps.cluster.model");
 
 		MessageField fileTransfer = schema.addObject("fileTransfer");
 		schema.addTextField(fileTransfer, "fileId");
@@ -36,6 +35,6 @@ public class ClusterSchema {
 		schema.addTextField(clusterMessage, "errorMessage");
 
 		System.out.println(schema);
-		PojoBuilder.createPojos(schema, new File("./src/main/java"), "org.teamapps.cluster.model");
+		PojoBuilder.createPojos(schema, new File("./src/main/java"));
 	}
 }

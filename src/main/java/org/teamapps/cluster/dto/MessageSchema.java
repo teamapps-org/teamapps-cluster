@@ -13,19 +13,22 @@ public class MessageSchema implements MessageModel {
 
 	private final int schemaId;
 	private final String name;
+	private final String namespace;
 	private List<MessageField> topLevelFields = new ArrayList<>();
 	private List<MessageField> fields = new ArrayList<>();
 	private Map<Integer, MessageField> fieldMap = new HashMap<>();
 	private List<ServiceSchema> serviceSchemas = new ArrayList<>();
 
-	public MessageSchema(int schemaId, String name) {
+	public MessageSchema(int schemaId, String name, String namespace) {
 		this.schemaId = schemaId;
 		this.name = name;
+		this.namespace = namespace;
 	}
 
 	public MessageSchema(DataInputStream dis) throws IOException {
 		schemaId = dis.readInt();
 		name = MessageUtils.readString(dis);
+		namespace = MessageUtils.readString(dis);
 		int fieldCount = dis.readInt();
 		for (int i = 0; i < fieldCount; i++) {
 			fields.add(new MessageField(dis));
@@ -35,6 +38,7 @@ public class MessageSchema implements MessageModel {
 	public void write(DataOutputStream dos) throws IOException {
 		dos.writeInt(schemaId);
 		dos.writeInt(fields.size());
+		MessageUtils.writeString(dos, namespace);
 		for (MessageField field : fields) {
 			field.write(dos);
 		}
@@ -218,6 +222,10 @@ public class MessageSchema implements MessageModel {
 
 	public List<ServiceSchema> getServiceSchemas() {
 		return serviceSchemas;
+	}
+
+	public String getNamespace() {
+		return namespace;
 	}
 
 	@Override

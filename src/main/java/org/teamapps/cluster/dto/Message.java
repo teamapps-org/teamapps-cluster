@@ -8,6 +8,7 @@ import java.lang.invoke.MethodHandles;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
@@ -25,6 +26,11 @@ public class Message {
 		}
 		return null;
 	};
+
+	public static int getMessageFieldId(byte[] bytes) throws IOException {
+		DataInputStream dis = new DataInputStream(new ByteArrayInputStream(bytes));
+		return dis.readInt();
+	}
 
 	public Message(MessageField field, Object value) {
 		this.field = field;
@@ -185,6 +191,10 @@ public class Message {
 
 	public MessageField getField() {
 		return field;
+	}
+
+	public int getFieldId() {
+		return field.getId();
 	}
 
 	private Object getValue() {
@@ -408,7 +418,7 @@ public class Message {
 
 	public <TYPE extends Message> List<TYPE> getMessageList(String name) {
 		Message message = getMessageByFieldName(name);
-		if (message == null) return null;
+		if (message == null) return Collections.emptyList();
 		return message.getMessageList();
 	}
 

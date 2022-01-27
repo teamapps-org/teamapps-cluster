@@ -6,16 +6,20 @@ import reactor.core.publisher.Mono;
 
 public abstract class AbstractClusterServiceClient {
 
-	private final TeamAppsCluster cluster;
+	private final ServiceRegistry serviceRegistry;
 	private final String serviceName;
 
-	public AbstractClusterServiceClient(TeamAppsCluster cluster, String serviceName) {
-		this.cluster = cluster;
+	public AbstractClusterServiceClient(ServiceRegistry serviceRegistry, String serviceName) {
+		this.serviceRegistry = serviceRegistry;
 		this.serviceName = serviceName;
 	}
 
 	protected <REQUEST extends Message, RESPONSE extends Message> Mono<RESPONSE> createClusterTask(String method, REQUEST request, MessageDecoder<RESPONSE> responseDecoder) {
-		return cluster.createServiceTask(serviceName, method, request, responseDecoder);
+		return serviceRegistry.createServiceTask(serviceName, method, request, responseDecoder);
+	}
+
+	public boolean isAvailable() {
+		return serviceRegistry.isServiceAvailable(serviceName);
 	}
 
 }

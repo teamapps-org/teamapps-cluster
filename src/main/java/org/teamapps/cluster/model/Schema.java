@@ -6,7 +6,7 @@ import java.util.Map;
 
 public class Schema implements MessageDecoderRegistry {
 
-    public static MessageSchema SCHEMA = new MessageSchema(100, "schema");
+    public static MessageSchema SCHEMA = new MessageSchema(100, "schema", "org.teamapps.cluster.model");
     public static MessageDecoderRegistry REGISTRY = new Schema();
 	private final static Map<Integer, MessageDecoder<? extends Message>> DECODERS = new HashMap<>();
 

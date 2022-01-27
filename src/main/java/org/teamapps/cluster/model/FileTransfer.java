@@ -35,6 +35,8 @@ public class FileTransfer extends Message {
 		return decoder;
 	}
 
+    public final static int ROOT_FIELD_ID = 100001;
+
 	public FileTransfer() {
 		super(Schema.SCHEMA.getFieldById(100001), new ArrayList<>());
 	}

@@ -6,7 +6,7 @@ import java.util.Map;
 
 public class {type} implements MessageDecoderRegistry {
 
-    public static MessageSchema SCHEMA = new MessageSchema({id}, "{name}");
+    public static MessageSchema SCHEMA = new MessageSchema({id}, "{name}", "{package}");
     public static MessageDecoderRegistry REGISTRY = new {type}();
 	private final static Map<Integer, MessageDecoder<? extends Message>> DECODERS = new HashMap<>();
 

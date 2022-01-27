@@ -10,24 +10,26 @@ import java.nio.file.Files;
 
 public class PojoBuilder {
 
-	public static void createPojos(MessageSchema schema, File directory, String namespace) throws IOException {
+	public static void createPojos(MessageSchema schema, File directory) throws IOException {
 		File dir = directory;
+		String namespace = schema.getNamespace();
 		for (String name : namespace.split("\\.")) {
 			dir = new File(dir, name);
 			dir.mkdir();
 		}
+		System.out.println("Create source in path: " + dir.getPath());
 		File f = dir;
-		createServiceClasses(schema, namespace, dir);
-		createSchemaPojo(schema, namespace, dir);
+		createServiceClasses(schema, dir);
+		createSchemaPojo(schema, dir);
 		schema.getFields().stream()
 				.filter(field -> field.getType() == MessageFieldType.OBJECT)
-				.forEach(field -> createMessagePojoSave(schema, field, namespace, f));
+				.forEach(field -> createMessagePojoSave(schema, field, f));
 	}
 
-	private static void createServiceClasses(MessageSchema schema, String namespace, File directory) throws IOException {
+	private static void createServiceClasses(MessageSchema schema, File directory) throws IOException {
 		for (ServiceSchema serviceSchema : schema.getServiceSchemas()) {
 			String tpl = readTemplate("service.tpl");
-			tpl = setValue(tpl, "package", namespace);
+			tpl = setValue(tpl, "package", schema.getNamespace());
 			String type = "Abstract" + firstUpperCase(serviceSchema.getServiceName());
 			tpl = setValue(tpl, "type", type);
 			tpl = setValue(tpl, "serviceName", serviceSchema.getServiceName());
@@ -50,7 +52,7 @@ public class PojoBuilder {
 
 			type = firstUpperCase(serviceSchema.getServiceName()) + "Client";
 			tpl = readTemplate("serviceClient.tpl");
-			tpl = setValue(tpl, "package", namespace);
+			tpl = setValue(tpl, "package", schema.getNamespace());
 			tpl = setValue(tpl, "type", type);
 			tpl = setValue(tpl, "serviceName", serviceSchema.getServiceName());
 
@@ -69,9 +71,9 @@ public class PojoBuilder {
 
 	}
 
-	private static void createSchemaPojo(MessageSchema schema, String namespace, File directory) throws IOException {
+	private static void createSchemaPojo(MessageSchema schema, File directory) throws IOException {
 		String tpl = readTemplate("schema.tpl");
-		tpl = setValue(tpl, "package", namespace);
+		tpl = setValue(tpl, "package", schema.getNamespace());
 		tpl = setValue(tpl, "type", firstUpperCase(schema.getName()));
 		tpl = setValue(tpl, "id", "" + schema.getSchemaId());
 		tpl = setValue(tpl, "name", schema.getName());
@@ -103,17 +105,17 @@ public class PojoBuilder {
 		Files.writeString(file.toPath(), tpl);
 	}
 
-	private static void createMessagePojoSave(MessageSchema schema, MessageField field, String namespace, File directory) {
+	private static void createMessagePojoSave(MessageSchema schema, MessageField field, File directory) {
 		try {
-			createMessagePojo(schema, field, namespace, directory);
+			createMessagePojo(schema, field, directory);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
 
-	private static void createMessagePojo(MessageSchema schema, MessageField objectField, String namespace, File directory) throws IOException {
+	private static void createMessagePojo(MessageSchema schema, MessageField objectField, File directory) throws IOException {
 		String tpl = readTemplate("pojo.tpl");
-		tpl = setValue(tpl, "package", namespace);
+		tpl = setValue(tpl, "package", schema.getNamespace());
 		tpl = setValue(tpl, "type", firstUpperCase(objectField.getName()));
 		tpl = setValue(tpl, "schema", firstUpperCase(schema.getName()));
 		tpl = setValue(tpl, "fieldId", "" + objectField.getId());
@@ -141,6 +143,7 @@ public class PojoBuilder {
 		tpl = setValue(tpl, "methods", data.toString());
 		File file = new File(directory, firstUpperCase(objectField.getName()) + ".java");
 		Files.writeString(file.toPath(), tpl);
+		System.out.println("Write pojo:" + file.getPath());
 	}
 
 	private static String readTemplate(String name) throws IOException {

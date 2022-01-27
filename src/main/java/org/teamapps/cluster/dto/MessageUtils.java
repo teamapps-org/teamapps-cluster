@@ -27,7 +27,7 @@ public class MessageUtils {
 	}
 
 	public static void writeFile(DataOutputStream dos, File file, FileSink fileSink) throws IOException {
-		if (fileSink == null || file == null) {
+		if (fileSink == null || file == null || !file.exists() || file.length() == 0) {
 			writeString(dos, null);
 			return;
 		}

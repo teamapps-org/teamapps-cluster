@@ -35,6 +35,8 @@ public class {type} extends Message {
 		return decoder;
 	}
 
+    public final static int ROOT_FIELD_ID = {fieldId};
+
 	public {type}() {
 		super({schema}.SCHEMA.getFieldById({fieldId}), new ArrayList<>());
 	}

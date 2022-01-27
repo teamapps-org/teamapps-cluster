@@ -6,8 +6,12 @@ import io.atomix.cluster.Node;
 import io.atomix.cluster.discovery.BootstrapDiscoveryProvider;
 import io.atomix.cluster.messaging.ClusterCommunicationService;
 import io.atomix.core.Atomix;
+import io.atomix.core.election.LeaderElection;
 import io.atomix.primitive.partition.MemberGroupStrategy;
 import io.atomix.protocols.backup.partition.PrimaryBackupPartitionGroup;
+import io.atomix.protocols.raft.MultiRaftProtocol;
+import io.atomix.protocols.raft.ReadConsistency;
+import io.atomix.protocols.raft.partition.RaftPartitionGroup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.teamapps.cluster.crypto.AesCipher;
@@ -15,7 +19,10 @@ import org.teamapps.cluster.crypto.ShaHash;
 import org.teamapps.cluster.dto.FileProvider;
 import org.teamapps.cluster.dto.Message;
 import org.teamapps.cluster.dto.MessageDecoder;
-import org.teamapps.cluster.model.*;
+import org.teamapps.cluster.model.ClusterMessage;
+import org.teamapps.cluster.model.FileTransfer;
+import org.teamapps.cluster.model.FileTransferResponse;
+import org.teamapps.cluster.network.NodeAddress;
 import org.teamapps.common.util.ExceptionUtil;
 import org.teamapps.event.Event;
 import reactor.core.publisher.Mono;
@@ -31,7 +38,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
-public class TeamAppsCluster implements FileProvider {
+public class TeamAppsCluster implements FileProvider, ServiceRegistry {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
 	private static final String CLUSTER_REQUEST_CHANNEL = "cr";
@@ -156,6 +163,12 @@ public class TeamAppsCluster implements FileProvider {
 		}
 	}
 
+
+	public boolean isServiceAvailable(String serviceName) {
+		List<MemberId> serviceProvider = clusterServices.getOrDefault(serviceName, Collections.emptyList());
+		return !serviceProvider.isEmpty();
+	}
+
 	public <REQUEST extends Message, RESPONSE extends Message> Mono<RESPONSE> createServiceTask(String serviceName, String messageType, REQUEST request, MessageDecoder<RESPONSE> responseDecoder) {
 		Mono<RESPONSE> mono = Mono.<CompletableFuture<byte[]>>create(monoSink -> {
 					List<MemberId> serviceProvider = clusterServices.getOrDefault(serviceName, Collections.emptyList());
@@ -180,7 +193,9 @@ public class TeamAppsCluster implements FileProvider {
 					} catch (Exception e) {
 						monoSink.error(e);
 					}
-				}).flatMap(Mono::fromFuture).map(bytes -> responseDecoder.decode(aesCipher.decryptSave(bytes), this))
+				})
+				.flatMap(Mono::fromFuture)
+				.map(bytes -> responseDecoder.decode(aesCipher.decryptSave(bytes), this))
 				.subscribeOn(Schedulers.boundedElastic())
 				.retryWhen(Retry.backoff(retryMaxAttempts, retryBackoffDuration));
 		return mono;
@@ -193,9 +208,21 @@ public class TeamAppsCluster implements FileProvider {
 				.map(parts -> Node.builder().withHost(parts[0]).withPort(Integer.parseInt(parts[1])).build())
 				.collect(Collectors.toList());
 
+		PrimaryBackupPartitionGroup primaryBackupPartitionGroup = PrimaryBackupPartitionGroup.builder("mmg")
+				.withNumPartitions(71)
+				.withMemberGroupStrategy(MemberGroupStrategy.RACK_AWARE)
+				.build();
+
+		RaftPartitionGroup raftPartitionGroup = RaftPartitionGroup.builder("mmg")
+				.withNumPartitions(1)
+				.withMembers(nodes.stream().map(node -> Member.builder().withAddress(node.address()).build()).toArray(Member[]::new))
+				.build();
+		;
+
 		atomix = Atomix.builder()
 				.withClusterId(clusterId)
 				.withPort(localPort)
+				.withMulticastEnabled(false)
 				.withMembershipProvider(
 						BootstrapDiscoveryProvider.builder()
 								.withNodes(nodes)
@@ -204,10 +231,7 @@ public class TeamAppsCluster implements FileProvider {
 								.build()
 				)
 				.withManagementGroup(
-						PrimaryBackupPartitionGroup.builder("mmg")
-								.withNumPartitions(71)
-								.withMemberGroupStrategy(MemberGroupStrategy.RACK_AWARE)
-								.build()
+						primaryBackupPartitionGroup
 				)
 				.withPartitionGroups(
 						PrimaryBackupPartitionGroup.builder("data")
@@ -253,7 +277,7 @@ public class TeamAppsCluster implements FileProvider {
 		startFuture.join();
 	}
 
-	protected void registerService(AbstractClusterService clusterService) {
+	public void registerService(AbstractClusterService clusterService) {
 		localServices.put(clusterService.getServiceName(), clusterService);
 		localMember.properties().setProperty(SERVICES_PROPERTY, String.join(",", localServices.keySet()));
 	}

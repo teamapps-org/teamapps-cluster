@@ -7,13 +7,13 @@ import java.io.IOException;
 
 public abstract class AbstractClusterService {
 
-	private final TeamAppsCluster cluster;
+	private final ServiceRegistry serviceRegistry;
 	private final String serviceName;
 
-	public AbstractClusterService(TeamAppsCluster cluster, String serviceName) {
-		this.cluster = cluster;
+	public AbstractClusterService(ServiceRegistry serviceRegistry, String serviceName) {
+		this.serviceRegistry = serviceRegistry;
 		this.serviceName = serviceName;
-		cluster.registerService(this);
+		serviceRegistry.registerService(this);
 	}
 
 	public String getServiceName() {

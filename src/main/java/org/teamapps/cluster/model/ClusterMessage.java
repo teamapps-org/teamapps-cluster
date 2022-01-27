@@ -35,6 +35,8 @@ public class ClusterMessage extends Message {
 		return decoder;
 	}
 
+    public final static int ROOT_FIELD_ID = 100009;
+
 	public ClusterMessage() {
 		super(Schema.SCHEMA.getFieldById(100009), new ArrayList<>());
 	}

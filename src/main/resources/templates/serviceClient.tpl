@@ -8,8 +8,8 @@ import java.io.IOException;
 
 public class {type} extends AbstractClusterServiceClient {
 
-    public {type}(TeamAppsCluster cluster) {
-        super(cluster, "{serviceName}");
+    public {type}(ServiceRegistry registry) {
+        super(registry, "{serviceName}");
     }
 
 {methods}
