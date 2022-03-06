@@ -1,15 +1,18 @@
 package org.teamapps.cluster.crypto;
 
+import org.apache.commons.codec.binary.Hex;
 import org.teamapps.common.util.ExceptionUtil;
 
-import javax.crypto.Cipher;
-import javax.crypto.NoSuchPaddingException;
+import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.util.Arrays;
 
 public class AesCipher {
 
