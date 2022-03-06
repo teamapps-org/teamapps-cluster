@@ -18,13 +18,13 @@
         <dependency>
             <groupId>org.teamapps</groupId>
             <artifactId>teamapps-common</artifactId>
-            <version>0.9.133</version>
+            <version>0.9.139</version>
         </dependency>
 
         <dependency>
             <groupId>org.teamapps</groupId>
             <artifactId>teamapps-ux</artifactId>
-            <version>0.9.133</version>
+            <version>0.9.139</version>
         </dependency>
 
         <dependency>
@@ -96,6 +96,12 @@
             <groupId>io.reactivex.rxjava3</groupId>
             <artifactId>rxjava</artifactId>
             <version>3.1.3</version>
+        </dependency>
+
+        <dependency>
+            <groupId>commons-codec</groupId>
+            <artifactId>commons-codec</artifactId>
+            <version>1.15</version>
         </dependency>
 
     </dependencies>
