@@ -150,6 +150,20 @@ public class PojoBuilder {
 			data.append(getTabs(2)).append("setPropertyValue(\"").append(field.getName()).append("\", value);\n");
 			data.append(getTabs(2)).append("return this;\n");
 			data.append(getTabs(1)).append("}\n");
+
+			if (field.getType() == MessageFieldType.STRING_ARRAY) {
+				data.append(getTabs(1)).append("public List<String> get").append(firstUpperCase(field.getName()) + "AsList").append("() {\n");
+				data.append(getTabs(2)).append("String[] arrayValue = ").append(getGetterMethod(field)).append("(\"").append(field.getName()).append("\");\n");
+				data.append(getTabs(2)).append("return arrayValue != null ? Arrays.asList(arrayValue) : Collections.emptyList();").append("\n");
+				data.append(getTabs(1)).append("}\n");
+
+				data.append("\n");
+				data.append(getTabs(1)).append("public " + firstUpperCase(objectField.getName()) + " set").append(firstUpperCase(field.getName())).append("(List<String> value) {\n");
+				data.append(getTabs(2)).append("setPropertyValue(\"").append(field.getName()).append("\", value != null ? value.toArray(String[]::new) : null);\n");
+				data.append(getTabs(2)).append("return this;\n");
+				data.append(getTabs(1)).append("}\n");
+			}
+
 			if (field.isMultiReference()) {
 				data.append("\n");
 				data.append(getTabs(1)).append("public " + firstUpperCase(objectField.getName()) + " add").append(firstUpperCase(field.getName())).append("(").append(firstUpperCase(field.getReferencedField(schema).getName())).append(" value) {\n");
