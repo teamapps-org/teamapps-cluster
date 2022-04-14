@@ -30,9 +30,9 @@ import java.net.Socket;
 
 public class Connection {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
-	public static final int MAX_MESSAGE_SIZE = 10_000_000;
+	public static final int MAX_MESSAGE_SIZE = 25_000_000;
 
-	private final ConnectionHandler connectionHandler;
+	private ConnectionHandler connectionHandler;
 	private final boolean outgoing;
 	private volatile boolean active = true;
 	private NodeAddress nodeAddress;
@@ -66,8 +66,15 @@ public class Connection {
 		}
 	}
 
-	private synchronized void closeConnection() {
+	public void setConnectionHandler(ConnectionHandler connectionHandler) {
+		this.connectionHandler = connectionHandler;
+	}
+
+	public synchronized void closeConnection() {
 		if (!active) {
+			if (connectionHandler != null) {
+				connectionHandler.handleConnectionClosed();
+			}
 			return;
 		}
 		LOGGER.info("Close connection, outgoing: {}, {}", outgoing, nodeAddress);
@@ -119,13 +126,15 @@ public class Connection {
 		thread.start();
 	}
 
-	public synchronized void writeMessage(byte[] bytes) {
+	public synchronized boolean writeMessage(byte[] bytes) {
 		try {
 			dataOutputStream.writeInt(bytes.length);
 			dataOutputStream.write(bytes);
 			dataOutputStream.flush();
+			return true;
 		} catch (Exception e) {
 			closeConnection();
+			return false;
 		}
 	}
 

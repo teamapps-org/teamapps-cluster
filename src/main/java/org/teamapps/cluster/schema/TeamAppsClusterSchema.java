@@ -22,6 +22,7 @@ package org.teamapps.cluster.schema;
 import org.teamapps.cluster.dto.MessageField;
 import org.teamapps.cluster.dto.MessageSchema;
 import org.teamapps.cluster.dto.PojoBuilder;
+import org.teamapps.cluster.dto.ServiceSchema;
 
 import java.io.File;
 import java.io.IOException;
@@ -42,10 +43,19 @@ public class TeamAppsClusterSchema {
 		schema.addBooleanField(clusterNodeData,  "response");
 		schema.addStringArrayField(clusterNodeData, "availableServices");
 
+		MessageField clusterTopicInfo = schema.addObject("clusterTopicInfo");
+		schema.addTextField(clusterTopicInfo, "topicName");
+		schema.addStringArrayField(clusterTopicInfo, "nodeIds");
+
+		MessageField clusterTopicMessage = schema.addObject("clusterTopicMessage");
+		schema.addTextField(clusterTopicMessage, "topic");
+		schema.addByteArrayField(clusterTopicMessage, "data");
+
 		MessageField clusterNodeInfo = schema.addObject("clusterNodeInfo");
 		schema.addBooleanField(clusterNodeInfo, "response");
 		schema.addSingleReference(clusterNodeInfo, clusterNodeData, "localNode");
 		schema.addMultiReference(clusterNodeInfo, clusterNodeData, "knownRemoteNodes");
+		schema.addMultiReference(clusterNodeInfo, clusterTopicInfo, "clusterTopics");
 
 
 		MessageField clusterRequest = schema.addObject("serviceClusterRequest");
@@ -64,6 +74,7 @@ public class TeamAppsClusterSchema {
 		MessageField clusterFileTransfer = schema.addObject("clusterFileTransfer");
 		schema.addTextField(clusterFileTransfer, "fileId");
 		schema.addLongField(clusterFileTransfer, "length");
+		schema.addIntField(clusterFileTransfer, "messageIndex");
 		schema.addByteArrayField(clusterFileTransfer, "data");
 		schema.addBooleanField(clusterFileTransfer, "initialMessage");
 		schema.addBooleanField(clusterFileTransfer, "lastMessage");
@@ -73,6 +84,27 @@ public class TeamAppsClusterSchema {
 		schema.addLongField(clusterFileTransferResponse, "receivedData");
 
 		MessageField keepAliveMessage = schema.addObject("keepAliveMessage");
+
+
+		MessageField dbTransaction = schema.addObject("DbTransaction");
+		schema.addByteArrayField(dbTransaction, "bytes");
+
+		MessageField dbTransactionRequest = schema.addObject("DbTransactionRequest");
+		schema.addByteArrayField(dbTransactionRequest, "bytes");
+
+
+		MessageField dbTransactionListRequest = schema.addObject("DbTransactionListRequest");
+		schema.addLongField(dbTransactionListRequest, "lastKnownTransactionId");
+
+		MessageField dbTransactionList = schema.addObject("DbTransactionList");
+		schema.addLongField(dbTransactionList, "lastKnownTransactionId");
+		schema.addLongField(dbTransactionList, "transactionCount");
+		schema.addFileField(dbTransactionList, "transactionsFile");
+
+
+		ServiceSchema dbLeader = schema.addService("DbLeader");
+		dbLeader.addMethod("requestMissingTransactions", dbTransactionListRequest, dbTransactionList);
+
 
 		System.out.println(schema);
 		PojoBuilder.createPojos(schema, new File("./src/main/java"));

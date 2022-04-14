@@ -25,9 +25,9 @@ public class LocalClusterNode extends ClusterNode{
 	private final int port;
 
 
-	public LocalClusterNode(int port) {
+	public LocalClusterNode(String localNodeId, int port) {
 		this.port = port;
-		setNodeId(UUID.randomUUID().toString());
+		setNodeId(localNodeId != null ? localNodeId : UUID.randomUUID().toString());
 	}
 
 	public int getPort() {

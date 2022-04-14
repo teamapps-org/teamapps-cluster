@@ -7,9 +7,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -27,6 +27,7 @@ import java.lang.invoke.MethodHandles;
 import java.net.Socket;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -43,6 +44,9 @@ public class RemoteClusterNode extends ClusterNode implements ConnectionHandler 
 	private int retries;
 	private long lastMessageTimestamp;
 	private byte[] keepAliveMessage;
+	private boolean running = true;
+
+	private ArrayBlockingQueue<byte[]> sendMessageQueue = new ArrayBlockingQueue<>(100_000);
 
 	public RemoteClusterNode(ClusterNodeMessageHandler clusterNodeMessageHandler, Socket socket) {
 		this.clusterNodeMessageHandler = clusterNodeMessageHandler;
@@ -60,6 +64,18 @@ public class RemoteClusterNode extends ClusterNode implements ConnectionHandler 
 		init();
 	}
 
+	public void merge(RemoteClusterNode clusterNode) {
+		if (!connected) {
+			if (this.connection != null) {
+				LOGGER.error("Error connection still exists!");
+			}
+			clusterNode.getConnection().setConnectionHandler(this);
+			this.connection = clusterNode.getConnection();
+		} else {
+			LOGGER.error("Cannot merge cluster node, existing node is still connected:" + nodeAddress);
+		}
+	}
+
 	private void init() {
 		keepAliveMessage = clusterNodeMessageHandler.getKeepAliveMessage();
 		scheduledExecutorService.scheduleAtFixedRate(() -> {
@@ -67,6 +83,37 @@ public class RemoteClusterNode extends ClusterNode implements ConnectionHandler 
 				sendKeepAlive();
 			}
 		}, 90, 90, TimeUnit.SECONDS);
+		startSendQueueThread();
+	}
+
+	private void startSendQueueThread() {
+		Thread thread = new Thread(() -> {
+			byte[] unsentMessageBytes = null;
+			while (running) {
+				try {
+					if (connected) {
+						byte[] bytes = unsentMessageBytes != null ? unsentMessageBytes : sendMessageQueue.take();
+						boolean success = connection.writeMessage(bytes);
+						LOGGER.debug("Write async message to " + getNodeId() + ", len:" + bytes + ", success:" + success);
+						if (success) {
+							unsentMessageBytes = null;
+							lastMessageTimestamp = System.currentTimeMillis();
+						} else {
+							unsentMessageBytes = bytes;
+							Thread.sleep(1_000);
+							LOGGER.error("Could not write message async");
+						}
+					} else {
+						Thread.sleep(500);
+					}
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+			}
+		});
+		thread.setDaemon(true);
+		thread.setName("connection-async-writer-" + nodeAddress.getHost());
+		thread.start();
 	}
 
 	private void sendKeepAlive() {
@@ -79,11 +126,16 @@ public class RemoteClusterNode extends ClusterNode implements ConnectionHandler 
 	}
 
 	public void sendMessage(byte[] bytes) {
-		if (bytes != null && connection != null) {
+		if (bytes != null && connection != null) {  //todo connected instead of connection != null!
 			lastMessageTimestamp = System.currentTimeMillis();
 			connection.writeMessage(bytes);
 		}
 	}
+
+	public boolean sendMessageAsync(byte[] bytes) {
+		return bytes != null && sendMessageQueue.offer(bytes);
+	}
+
 
 	@Override
 	public void handleMessage(byte[] bytes) {
@@ -119,6 +171,10 @@ public class RemoteClusterNode extends ClusterNode implements ConnectionHandler 
 		return nodeAddress;
 	}
 
+	public Connection getConnection() {
+		return connection;
+	}
+
 	public void setClusterNodeData(ClusterNodeData nodeData) {
 		if (getNodeId() == null) {
 			setNodeId(nodeData.getNodeId());
@@ -132,6 +188,17 @@ public class RemoteClusterNode extends ClusterNode implements ConnectionHandler 
 				.setHost(getNodeAddress().getHost())
 				.setPort(getNodeAddress().getPort())
 				.setAvailableServices(getServices().toArray(new String[0]));
+	}
+
+	public void shutDown() {
+		try {
+			if (connection != null) {
+				connection.closeConnection();
+			}
+			running = false;
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 
 	@Override
