@@ -20,7 +20,7 @@
 package org.teamapps.cluster.crypto;
 
 import org.apache.commons.codec.binary.Hex;
-import org.teamapps.common.util.ExceptionUtil;
+import org.teamapps.cluster.utils.ExceptionUtil;
 
 import javax.crypto.Cipher;
 import javax.crypto.NoSuchPaddingException;

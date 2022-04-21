@@ -7,9 +7,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -19,7 +19,6 @@
  */
 package org.teamapps.cluster.service;
 
-import org.checkerframework.checker.units.qual.K;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.teamapps.cluster.crypto.AesCipher;
@@ -32,10 +31,7 @@ import org.teamapps.cluster.network.ClusterNodeMessageHandler;
 import org.teamapps.cluster.network.LocalClusterNode;
 import org.teamapps.cluster.network.NodeAddress;
 import org.teamapps.cluster.network.RemoteClusterNode;
-import org.teamapps.cluster.service.AbstractClusterService;
-import org.teamapps.cluster.service.ServiceRegistry;
-import org.teamapps.cluster.service.Utils;
-import org.teamapps.common.util.ExceptionUtil;
+import org.teamapps.cluster.utils.ExceptionUtil;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import reactor.util.retry.Retry;
@@ -280,10 +276,14 @@ public class TeamAppsCluster extends Thread implements ClusterNodeMessageHandler
 				executor.submit(() -> {
 					try {
 						switch (messageRootFieldId) {
-							case ClusterNodeInfo.ROOT_FIELD_ID -> handleClusterNodeInfo(new ClusterNodeInfo(data, this), clusterNode);
-							case ClusterFileTransferResponse.ROOT_FIELD_ID -> handleFileTransferResponse(new ClusterFileTransferResponse(data, this), clusterNode);
-							case ServiceClusterRequest.ROOT_FIELD_ID -> handleServiceClusterRequest(new ServiceClusterRequest(data, this), clusterNode);
-							case ServiceClusterResponse.ROOT_FIELD_ID -> handleServiceClusterResponse(new ServiceClusterResponse(data, this), clusterNode);
+							case ClusterNodeInfo.ROOT_FIELD_ID ->
+									handleClusterNodeInfo(new ClusterNodeInfo(data, this), clusterNode);
+							case ClusterFileTransferResponse.ROOT_FIELD_ID ->
+									handleFileTransferResponse(new ClusterFileTransferResponse(data, this), clusterNode);
+							case ServiceClusterRequest.ROOT_FIELD_ID ->
+									handleServiceClusterRequest(new ServiceClusterRequest(data, this), clusterNode);
+							case ServiceClusterResponse.ROOT_FIELD_ID ->
+									handleServiceClusterResponse(new ServiceClusterResponse(data, this), clusterNode);
 						}
 					} catch (Exception e) {
 						e.printStackTrace();

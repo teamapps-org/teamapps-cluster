@@ -121,8 +121,10 @@ public class RemoteClusterNode extends ClusterNode implements ConnectionHandler 
 	}
 
 	private void createOutgoingConnection() {
-		this.connection = new Connection(this, nodeAddress);
-		this.connection.writeMessage(clusterNodeMessageHandler.createInitMessage());
+		if (running) {
+			this.connection = new Connection(this, nodeAddress);
+			this.connection.writeMessage(clusterNodeMessageHandler.createInitMessage());
+		}
 	}
 
 	public void sendMessage(byte[] bytes) {
@@ -196,6 +198,7 @@ public class RemoteClusterNode extends ClusterNode implements ConnectionHandler 
 				connection.closeConnection();
 			}
 			running = false;
+			scheduledExecutorService.shutdownNow();
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
