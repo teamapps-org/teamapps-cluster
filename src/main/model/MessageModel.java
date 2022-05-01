@@ -17,23 +17,16 @@
  * limitations under the License.
  * =========================LICENSE_END==================================
  */
-package org.teamapps.cluster.schema;
 
-import org.teamapps.cluster.dto.MessageField;
-import org.teamapps.cluster.dto.MessageSchema;
-import org.teamapps.cluster.dto.PojoBuilder;
-import org.teamapps.cluster.dto.ServiceSchema;
+import org.teamapps.protocol.message.MessageField;
+import org.teamapps.protocol.message.MessageModelSchemaProvider;
+import org.teamapps.protocol.message.MessageSchema;
+import org.teamapps.protocol.service.ServiceSchema;
 
-import java.io.File;
-import java.io.IOException;
+public class MessageModel implements MessageModelSchemaProvider {
 
-public class TeamAppsClusterSchema {
-
-	public static void main(String[] args) throws IOException {
-		createSchema();
-	}
-
-	private static void createSchema() throws IOException {
+	@Override
+	public MessageSchema getSchema() {
 		MessageSchema schema = new MessageSchema(101, "clusterSchemaRegistry", "org.teamapps.cluster.model.cluster");
 
 		MessageField clusterNodeData = schema.addObject("clusterNodeData");
@@ -105,8 +98,6 @@ public class TeamAppsClusterSchema {
 		ServiceSchema dbLeader = schema.addService("DbLeader");
 		dbLeader.addMethod("requestMissingTransactions", dbTransactionListRequest, dbTransactionList);
 
-
-		System.out.println(schema);
-		PojoBuilder.createPojos(schema, new File("./src/main/java"));
+		return schema;
 	}
 }
