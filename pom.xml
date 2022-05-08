@@ -57,7 +57,7 @@
         <dependency>
             <groupId>org.teamapps</groupId>
             <artifactId>teamapps-protocol-schema</artifactId>
-            <version>0.2</version>
+            <version>0.3-SNAPSHOT</version>
         </dependency>
 
         <dependency>
@@ -98,6 +98,7 @@
                     <execution>
                         <goals>
                             <goal>generate-message-model</goal>
+                            <goal>generate-protocol-api</goal>
                         </goals>
                     </execution>
                 </executions>
