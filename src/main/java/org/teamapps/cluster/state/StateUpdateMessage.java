@@ -11,7 +11,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
-public class StateMachineUpdateMessage {
+public class StateUpdateMessage {
 
 	private final String subStateId;
 	private final ChangeOperation operation;
@@ -19,14 +19,14 @@ public class StateMachineUpdateMessage {
 	private final MessageObject message;
 
 
-	public StateMachineUpdateMessage(String subStateId, ChangeOperation operation, String identifier, MessageObject message) {
+	public StateUpdateMessage(String subStateId, ChangeOperation operation, String identifier, MessageObject message) {
 		this.subStateId = subStateId;
 		this.operation = operation;
 		this.identifier = identifier;
 		this.message = message;
 	}
 
-	public StateMachineUpdateMessage(DataInputStream dis, ModelRegistry modelRegistry, FileProvider fileProvider) throws IOException {
+	public StateUpdateMessage(DataInputStream dis, ModelRegistry modelRegistry, FileProvider fileProvider) throws IOException {
 		subStateId = MessageUtils.readString(dis);
 		operation = ChangeOperation.getById(dis.readUnsignedByte());
 		identifier = MessageUtils.readString(dis);

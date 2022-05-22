@@ -2,9 +2,7 @@ package org.teamapps.cluster.state;
 
 import org.teamapps.protocol.schema.MessageObject;
 
-import java.util.List;
-
-public interface DistributedStateMachineHandler {
+public interface ReplicatedStateHandler {
 
 	void handleStateUpdated(String stateId, MessageObject state);
 
@@ -15,6 +13,8 @@ public interface DistributedStateMachineHandler {
 	void handleEntryUpdated(String list, MessageObject currentState, MessageObject previousState);
 
 	void handleAllEntriesRemoved(String list);
+
+	void handleFireAndForget(String list, MessageObject message);
 
 	void handleStateMachineRemoved();
 }
