@@ -25,12 +25,25 @@ public class Protocol implements ModelCollectionProvider {
 		MessageModelCollection modelCollection = new MessageModelCollection("ClusterModel", "org.teamapps.cluster.protocol", 1);
 
 		ObjectPropertyDefinition clusterMessageFilePart = modelCollection.createModel("clusterMessageFilePart", "#tac.cmfp");
-		clusterMessageFilePart.addProperty("fileId", 1, PropertyType.STRING);
-		clusterMessageFilePart.addProperty("totalLength", 2, PropertyType.LONG);
-		clusterMessageFilePart.addProperty("initialMessage", 3, PropertyType.BOOLEAN);
-		clusterMessageFilePart.addProperty("lastMessage", 4, PropertyType.BOOLEAN);
-		clusterMessageFilePart.addProperty("data", 5, PropertyType.BYTE_ARRAY);
+		clusterMessageFilePart.addStringProperty("fileId", 1);
+		clusterMessageFilePart.addLongProperty("totalLength", 2);
+		clusterMessageFilePart.addBooleanProperty("initialMessage", 3);
+		clusterMessageFilePart.addBooleanProperty("lastMessage", 4);
+		clusterMessageFilePart.addByteArrayProperty("data", 5);
 
+		ObjectPropertyDefinition nodeInfo = modelCollection.createModel("nodeInfo", "#tac.ni");
+		nodeInfo.addStringProperty("nodeId", 1);
+		nodeInfo.addBooleanProperty("leader", 2);
+		nodeInfo.addStringProperty("host", 3);
+		nodeInfo.addIntProperty("port", 4);
+		nodeInfo.addBooleanProperty("reachable", 5);
+		nodeInfo.addStringArrayProperty("services", 6);
+
+		ObjectPropertyDefinition clusterInfo = modelCollection.createModel("clusterInfo", "#tac.ci");
+		clusterInfo.addBooleanProperty("initialMessage", 1);
+		clusterInfo.addBooleanProperty("response", 2);
+		clusterInfo.addSingleReference("localNode", 3, nodeInfo);
+		clusterInfo.addMultiReference("remoteNodes", 4, nodeInfo);
 
 
 		return modelCollection;
