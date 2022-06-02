@@ -1,8 +1,8 @@
 /*-
  * ========================LICENSE_START=================================
- * TeamApps Protocol Schema
+ * TeamApps Cluster
  * ---
- * Copyright (C) 2022 TeamApps.org
+ * Copyright (C) 2021 - 2022 TeamApps.org
  * ---
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
