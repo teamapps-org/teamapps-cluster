@@ -14,4 +14,8 @@ public interface ConnectionHandler {
 	void handleConnectionClosed();
 
 	void handleMessage(MessageObject message);
+
+	void handleClusterExecutionRequest(String serviceName, String serviceMethod, MessageObject message, long requestId);
+
+	void handleClusterExecutionResult(MessageObject message, long requestId);
 }

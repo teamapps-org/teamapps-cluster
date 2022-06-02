@@ -2,6 +2,7 @@ package org.teamapps.cluster.core;
 
 import org.teamapps.cluster.protocol.NodeInfo;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public abstract class AbstractNode implements Node {
@@ -10,7 +11,7 @@ public abstract class AbstractNode implements Node {
 	private HostAddress hostAddress;
 	private boolean externallyReachable;
 	private boolean leader;
-	private List<String> services;
+	private List<String> services = new ArrayList<>();
 
 	public AbstractNode() {
 	}
@@ -57,9 +58,9 @@ public abstract class AbstractNode implements Node {
 		return new NodeInfo()
 				.setNodeId(nodeId)
 				.setLeader(leader)
-				.setHost(hostAddress.getHost())
-				.setPort(hostAddress.getPort())
-				.setServices(services.toArray(new String[0]));
+				.setHost(hostAddress != null ? hostAddress.getHost() : null)
+				.setPort(hostAddress != null ? hostAddress.getPort() : 0)
+				.setServices(services != null ? services.toArray(new String[0]) : null);
 	}
 
 	public void setNodeId(String nodeId) {

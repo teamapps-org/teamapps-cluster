@@ -13,9 +13,9 @@ import java.lang.invoke.MethodHandles;
 import java.net.Socket;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.Map;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class RemoteNodeImpl extends AbstractNode implements RemoteNode {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
@@ -31,6 +31,8 @@ public class RemoteNodeImpl extends AbstractNode implements RemoteNode {
 	private int retries;
 	private boolean running = true;
 	private ClusterInfo lastClusterInfo;
+	private AtomicLong serviceRequestIdGenerator = new AtomicLong();
+	private Map<Long, CompletableFuture<MessageObject>> serviceRequestMap = new ConcurrentHashMap<>();
 
 	public RemoteNodeImpl(HostAddress hostAddress, ClusterHandler clusterHandler, ModelRegistry modelRegistry, File tempDir, String clusterSecret) {
 		super(hostAddress);
@@ -46,7 +48,7 @@ public class RemoteNodeImpl extends AbstractNode implements RemoteNode {
 		this.clusterHandler = clusterHandler;
 		this.modelRegistry = modelRegistry;
 		this.outboundConnection = false;
-		new NetworkConnection(socket, this, modelRegistry, tempDir, clusterSecret);
+		new NetworkConnection(socket, messageQueue, this, modelRegistry, tempDir, clusterSecret);
 	}
 
 	private void connect() {
@@ -68,16 +70,21 @@ public class RemoteNodeImpl extends AbstractNode implements RemoteNode {
 
 	@Override
 	public void handleConnectionEstablished(Connection connection, ClusterInfo clusterInfo) {
+		updateClusterInfo(clusterInfo);
 		LOGGER.info("Remote connection established: {}, {}", getNodeId(), getHostAddress());
 		this.retries = 0;
 		this.connection = connection;
-		handleClusterInfoUpdate(clusterInfo);
 		clusterHandler.handleNodeConnected(this, clusterInfo);
 		startKeepAliveService();
 	}
 
 	@Override
 	public void handleClusterInfoUpdate(ClusterInfo clusterInfo) {
+		updateClusterInfo(clusterInfo);
+		clusterHandler.handleClusterUpdate();
+	}
+
+	private void updateClusterInfo(ClusterInfo clusterInfo) {
 		NodeInfo localNode = clusterInfo.getLocalNode();
 		setNodeId(localNode.getNodeId());
 		setHostAddress(new HostAddress(localNode.getHost(), localNode.getPort()));
@@ -91,6 +98,7 @@ public class RemoteNodeImpl extends AbstractNode implements RemoteNode {
 		LOGGER.info("Remote connection closed: {}, {}", getNodeId(), getHostAddress());
 		connection = null;
 		retries++;
+		clusterHandler.handleNodeDisconnected(this);
 		if (outboundConnection && running) {
 			scheduledExecutorService.schedule(this::connect, retries < 10 ? 3 : 15, TimeUnit.SECONDS);
 		}
@@ -98,7 +106,27 @@ public class RemoteNodeImpl extends AbstractNode implements RemoteNode {
 
 	@Override
 	public void handleMessage(MessageObject message) {
+		clusterHandler.handleMessage(message, this);
+	}
 
+	@Override
+	public void handleClusterExecutionRequest(String serviceName, String serviceMethod, MessageObject message, long requestId) {
+		MessageObject result = clusterHandler.handleClusterServiceMethod(serviceName, serviceMethod, message);
+		//todo handle exceptions, null messages...
+		addMessageToSendQueue(new MessageQueueEntry(true, true, result, serviceName, serviceMethod, true, requestId));
+	}
+
+	@Override
+	public void handleClusterExecutionResult(MessageObject message, long requestId) {
+		CompletableFuture<MessageObject> completableFuture = serviceRequestMap.remove(requestId);
+		if (completableFuture != null) {
+			completableFuture.complete(message);
+		}
+	}
+
+	@Override
+	public void recycleNode(RemoteNode node) {
+		this.messageQueue.reuseQueue(node.getMessageQueue());
 	}
 
 	@Override
@@ -111,6 +139,7 @@ public class RemoteNodeImpl extends AbstractNode implements RemoteNode {
 		return outboundConnection;
 	}
 
+	@Override
 	public void shutDown() {
 		try {
 			if (connection != null) {
@@ -124,18 +153,47 @@ public class RemoteNodeImpl extends AbstractNode implements RemoteNode {
 	}
 
 	@Override
-	public void sendMessage(MessageObject message, boolean resentOnError) {
-		if (isConnected()) {
-			if (!messageQueue.addMessage(message, resentOnError)) {
-				if (connection != null) {
-					connection.close();
-				}
-			}
+	public MessageQueue getMessageQueue() {
+		return messageQueue;
+	}
+
+	@Override
+	public void sendMessage(MessageObject message, boolean resendOnError) {
+		if (isConnected() && message != null) {
+			addMessageToSendQueue(new MessageQueueEntry(resendOnError, message));
+		} else {
+			LOGGER.warn("Cannot send message, connected: {}, message: {}", isConnected(), message != null ? message.getName() : "is NULL!");
 		}
 	}
 
 	@Override
 	public <REQUEST extends MessageObject, RESPONSE extends MessageObject> RESPONSE executeServiceMethod(String service, String serviceMethod, REQUEST request, PojoObjectDecoder<RESPONSE> responseDecoder) {
+		if (isConnected() && request != null && responseDecoder != null) {
+			long requestId = serviceRequestIdGenerator.incrementAndGet();
+			CompletableFuture<MessageObject> completableFuture = new CompletableFuture<>();
+			serviceRequestMap.put(requestId, completableFuture);
+			addMessageToSendQueue(new MessageQueueEntry(true, true, request, service, serviceMethod, false, requestId));
+			try {
+				MessageObject response = completableFuture.get();
+				return responseDecoder.remap(response);
+			} catch (InterruptedException | ExecutionException e) {
+				throw new RuntimeException(e);
+			}
+		}
 		return null;
+	}
+
+	private void addMessageToSendQueue(MessageQueueEntry entry) {
+		if (!messageQueue.addMessage(entry)) {
+			LOGGER.warn("Error message queue is full, dropping connection: {}, {}", getNodeId(), getHostAddress());
+			if (connection != null) {
+				connection.close();
+			}
+		}
+	}
+
+	@Override
+	public String toString() {
+		return getNodeId() + ", " + getHostAddress();
 	}
 }

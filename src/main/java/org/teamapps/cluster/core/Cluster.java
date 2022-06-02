@@ -1,12 +1,38 @@
 package org.teamapps.cluster.core;
 
+import org.teamapps.protocol.schema.ClusterServiceRegistry;
 import org.teamapps.protocol.schema.MessageObject;
 import org.teamapps.protocol.schema.ModelCollection;
 import org.teamapps.protocol.schema.PojoObjectDecoder;
 
+import java.io.IOException;
 import java.util.List;
 
-public interface Cluster extends ClusterHandler {
+public interface Cluster extends ClusterServiceRegistry {
+
+	static Cluster createCluster(String clusterSecret, String nodeId, HostAddress... knownNodes) {
+		try {
+			return new ClusterImpl(clusterSecret, nodeId, false, knownNodes);
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	static Cluster createCluster(String clusterSecret, String nodeId, HostAddress externalAddress, boolean leader, HostAddress... knownNodes) {
+		try {
+			return new ClusterImpl(clusterSecret, nodeId, externalAddress, externalAddress, leader, knownNodes);
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	static Cluster createCluster(String clusterSecret, String nodeId, HostAddress externalAddress, HostAddress bindToAddress, boolean leader, HostAddress... knownNodes) {
+		try {
+			return new ClusterImpl(clusterSecret, nodeId, externalAddress, bindToAddress, leader, knownNodes);
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+	}
 
 	void addModelCollection(ModelCollection modelCollection);
 
@@ -20,20 +46,14 @@ public interface Cluster extends ClusterHandler {
 
 	boolean isServiceAvailable(String serviceName);
 
-	void registerService(String serviceName, ClusterService service);
+	<MESSAGE extends MessageObject> void sendMessage(MESSAGE message, String nodeId);
 
-	void removeService(String serviceName);
+	<MESSAGE extends MessageObject> void sendTopicMessage(String topic, MESSAGE message);
 
-	void sendMessage(MessageObject message, String nodeId);
+	<MESSAGE extends MessageObject> void registerMessageHandler(MessageHandler<MESSAGE> messageHandler, PojoObjectDecoder<MESSAGE> messageDecoder);
 
-	void sendTopicMessage(String topic, MessageObject message);
+	<MESSAGE extends MessageObject> void registerTopicHandler(String topic, MessageHandler<MESSAGE> messageHandler, PojoObjectDecoder<MESSAGE> messageDecoder);
 
-	void handleMessage(MessageObject message, RemoteNode node);
-
-	void handleTopicMessage(String topic, MessageObject message, RemoteNode node);
-
-	<REQUEST extends MessageObject, RESPONSE extends MessageObject> RESPONSE executeClusterServiceMethod(String service, String serviceMethod, REQUEST request, PojoObjectDecoder<RESPONSE> responseDecoder);
-
-	MessageObject handleClusterServiceMethod(String service, String serviceMethod, MessageObject requestData);
+	void shutDown();
 
 }

@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.teamapps.cluster.crypto.AesCipher;
 import org.teamapps.cluster.protocol.ClusterInfo;
 import org.teamapps.cluster.protocol.ClusterMessageFilePart;
+import org.teamapps.cluster.protocol.ClusterMethodExecution;
 import org.teamapps.protocol.schema.MessageObject;
 import org.teamapps.protocol.schema.ModelRegistry;
 
@@ -22,6 +23,7 @@ public class NetworkConnection implements Connection {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 	private static final ScheduledExecutorService scheduledExecutorService = Executors.newScheduledThreadPool(2);
 
+	private HostAddress remoteHostAddress;
 	private MessageQueue messageQueue;
 	private ConnectionHandler connectionHandler;
 	private ModelRegistry modelRegistry;
@@ -36,13 +38,15 @@ public class NetworkConnection implements Connection {
 	private long receivedBytes;
 
 
-	public NetworkConnection(Socket socket, ConnectionHandler connectionHandler, ModelRegistry modelRegistry, File tempDir, String clusterSecret) {
+	public NetworkConnection(Socket socket, MessageQueue messageQueue, ConnectionHandler connectionHandler, ModelRegistry modelRegistry, File tempDir, String clusterSecret) {
 		this.socket = socket;
+		this.messageQueue = messageQueue;
 		this.modelRegistry = modelRegistry;
 		this.connectionHandler = connectionHandler;
 		this.tempDir = tempDir;
 		this.aesCipher = new AesCipher(clusterSecret);
 		this.connected = true;
+		this.remoteHostAddress = new HostAddress(socket.getRemoteSocketAddress().toString(), socket.getPort());
 		handleSocket(socket);
 		startReaderThread();
 		startWriterThread();
@@ -54,10 +58,13 @@ public class NetworkConnection implements Connection {
 		this.connectionHandler = connectionHandler;
 		this.tempDir = tempDir;
 		this.aesCipher = new AesCipher(clusterSecret);
+		this.remoteHostAddress = hostAddress;
 		connect(hostAddress);
-		startReaderThread();
-		startWriterThread();
-		writeDirectMessage(connectionHandler.getClusterInfo().setInitialMessage(true));
+		if (connected) {
+			startReaderThread();
+			startWriterThread();
+			writeDirectMessage(connectionHandler.getClusterInfo().setInitialMessage(true));
+		}
 	}
 
 	private void connect(HostAddress hostAddress) {
@@ -110,10 +117,23 @@ public class NetworkConnection implements Connection {
 		Thread thread = new Thread(() -> {
 			while (connected) {
 				try {
-					MessageObject message = messageQueue.getNext();
-					byte[] bytes = message.toBytes(this);
-					byte[] data = aesCipher.encrypt(bytes);
-					writeData(data);
+					MessageQueueEntry queueEntry = messageQueue.getNext();
+					if (queueEntry.isServiceExecution()) {
+						ClusterMethodExecution clusterMethodExecution = new ClusterMethodExecution()
+								.setRequestId(queueEntry.getRequestId())
+								.setServiceName(queueEntry.getServiceName())
+								.setServiceMethod(queueEntry.getServiceMethod())
+								.setResponse(queueEntry.isServiceResponse())
+								.setData(queueEntry.getMessage().toBytes(this));
+						byte[] bytes = clusterMethodExecution.toBytes();
+						byte[] data = aesCipher.encrypt(bytes);
+						writeData(data);
+					} else {
+						MessageObject message = queueEntry.getMessage();
+						byte[] bytes = message.toBytes(this);
+						byte[] data = aesCipher.encrypt(bytes);
+						writeData(data);
+					}
 					messageQueue.commitLastMessage();
 				} catch (InterruptedException ignore) {
 				} catch (Exception exception) {
@@ -136,11 +156,24 @@ public class NetworkConnection implements Connection {
 				case ClusterInfo.OBJECT_UUID:
 					handleClusterInfo(new ClusterInfo(messageData, this));
 					break;
+				case ClusterMethodExecution.OBJECT_UUID:
+					handleClusterMethodExecution(new ClusterMethodExecution(messageData, this));
+					break;
 				default:
 					connectionHandler.handleMessage(new MessageObject(messageData, modelRegistry, this, null));
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
+		}
+	}
+
+	private void handleClusterMethodExecution(ClusterMethodExecution methodExecution) throws IOException {
+		MessageObject messageObject = new MessageObject(methodExecution.getData(), modelRegistry, this, null);
+		if (!methodExecution.isResponse()) {
+			connectionHandler.handleClusterExecutionRequest(methodExecution.getServiceName(), methodExecution.getServiceMethod(), messageObject, methodExecution.getRequestId());
+
+		} else {
+			connectionHandler.handleClusterExecutionResult(messageObject, methodExecution.getRequestId());
 		}
 	}
 
@@ -175,6 +208,10 @@ public class NetworkConnection implements Connection {
 
 	@Override
 	public void close() {
+		if (!connected) {
+			return;
+		}
+		LOGGER.info("Closed connection {}", remoteHostAddress);
 		try {
 			connected = false;
 			if (socket != null) {
@@ -211,11 +248,14 @@ public class NetworkConnection implements Connection {
 	}
 
 	private void handleClusterInfo(ClusterInfo clusterInfo) {
+		LOGGER.info("Handle cluster info:" + clusterInfo);
 		if (!clusterInfo.isResponse()) {
 			writeDirectMessage(connectionHandler.getClusterInfo().setResponse(true).setInitialMessage(clusterInfo.isInitialMessage()));
 		}
 		if (clusterInfo.isInitialMessage()) {
 			connectionHandler.handleConnectionEstablished(this, clusterInfo);
+		} else {
+			connectionHandler.handleClusterInfoUpdate(clusterInfo);
 		}
 	}
 

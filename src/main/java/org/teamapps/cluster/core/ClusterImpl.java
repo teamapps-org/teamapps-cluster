@@ -1,25 +1,27 @@
 package org.teamapps.cluster.core;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.teamapps.cluster.protocol.ClusterInfo;
 import org.teamapps.cluster.protocol.ClusterModel;
-import org.teamapps.protocol.schema.MessageObject;
-import org.teamapps.protocol.schema.ModelCollection;
-import org.teamapps.protocol.schema.ModelRegistry;
-import org.teamapps.protocol.schema.PojoObjectDecoder;
+import org.teamapps.cluster.service.Utils;
+import org.teamapps.protocol.schema.*;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
-public class ClusterImpl implements Cluster {
+public class ClusterImpl implements Cluster, ClusterHandler {
+	private static final Logger LOGGER = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
 	private final String clusterSecret;
 	private final File tempDir;
@@ -29,20 +31,25 @@ public class ClusterImpl implements Cluster {
 	private List<RemoteNode> remoteNodes = new ArrayList<>();
 	private final Map<String, RemoteNode> remoteNodeById = new ConcurrentHashMap<>();
 	private boolean active = true;
+	private final Map<String, AbstractClusterService> localServices = new ConcurrentHashMap<>();
+	private final Map<String, List<ClusterMessageHandler<? extends MessageObject>>> messageHandlersByModelUuid = new ConcurrentHashMap<>();
+	private final Map<String, List<ClusterMessageHandler<? extends MessageObject>>> messageHandlersByTopic = new ConcurrentHashMap<>();
+	private Map<String, List<RemoteNode>> clusterServicesByName = new HashMap<>();
+	private final ExecutorService executor = Executors.newFixedThreadPool(16);
 
 	public ClusterImpl(String clusterSecret, String nodeId, boolean leader, HostAddress... knownNodes) throws IOException {
-		this(clusterSecret, nodeId, leader, null, null, knownNodes);
+		this(clusterSecret, nodeId, null, null, leader, knownNodes);
 	}
 
-	public ClusterImpl(String clusterSecret, String nodeId, boolean leader, HostAddress externalAddress, HostAddress... knownNodes) throws IOException {
-		this(clusterSecret, nodeId, leader, externalAddress, externalAddress, knownNodes);
+	public ClusterImpl(String clusterSecret, String nodeId, HostAddress externalAddress, boolean leader, HostAddress... knownNodes) throws IOException {
+		this(clusterSecret, nodeId, externalAddress, externalAddress, leader, knownNodes);
 	}
 
-	public ClusterImpl(String clusterSecret, String nodeId, boolean leader, HostAddress externalAddress, HostAddress bindToAddress, HostAddress... knownNodes) throws IOException {
-		this(clusterSecret, Files.createTempDirectory("temp" ).toFile(), nodeId, leader, externalAddress, bindToAddress, knownNodes);
+	public ClusterImpl(String clusterSecret, String nodeId, HostAddress externalAddress, HostAddress bindToAddress, boolean leader, HostAddress... knownNodes) throws IOException {
+		this(clusterSecret, Files.createTempDirectory("temp").toFile(), nodeId, externalAddress, bindToAddress, leader, knownNodes);
 	}
 
-	public ClusterImpl(String clusterSecret, File tempDir, String nodeId, boolean leader, HostAddress externalAddress, HostAddress bindToAddress, HostAddress... knownNodes) {
+	public ClusterImpl(String clusterSecret, File tempDir, String nodeId, HostAddress externalAddress, HostAddress bindToAddress, boolean leader, HostAddress... knownNodes) {
 		this.clusterSecret = clusterSecret;
 		this.tempDir = tempDir;
 		this.modelRegistry = ClusterModel.MODEL_COLLECTION.createRegistry();
@@ -56,6 +63,19 @@ public class ClusterImpl implements Cluster {
 				createRemoteNode(hostAddress);
 			}
 		}
+		block();
+	}
+
+	public void block() {
+		new Thread(() -> {
+			while (active) {
+				try {
+					Thread.sleep(250);
+				} catch (InterruptedException e) {
+					throw new RuntimeException(e);
+				}
+			}
+		}).start();
 	}
 
 	private void createRemoteNode(HostAddress hostAddress) {
@@ -101,14 +121,39 @@ public class ClusterImpl implements Cluster {
 
 	@Override
 	public void handleNodeConnected(RemoteNode node, ClusterInfo clusterInfo) {
-		if (!remoteNodeById.containsKey(node.getNodeId())) {
+		ArrayList<RemoteNode> nodesCopy = new ArrayList<>(remoteNodes);
+		RemoteNode remoteNode = remoteNodeById.get(node.getNodeId());
+		if (remoteNode != null) {
+			LOGGER.info("Existing node reconnected:" + node);
+			node.recycleNode(remoteNode);
 			remoteNodeById.put(node.getNodeId(), node);
-			ArrayList<RemoteNode> nodesCopy = new ArrayList<>(remoteNodes);
+			nodesCopy.remove(remoteNode);
+			nodesCopy.add(node);
+			remoteNodes = nodesCopy;
+		} else {
+			LOGGER.info("New node connected:" + node);
+			remoteNodeById.put(node.getNodeId(), node);
 			nodesCopy.add(node);
 			remoteNodes = nodesCopy;
 		}
-		//todo sync cluster info
+		handleClusterUpdate();
+	}
 
+	@Override
+	public void handleNodeDisconnected(RemoteNode node) {
+
+	}
+
+	@Override
+	public void handleClusterUpdate() {
+		Map<String, List<RemoteNode>> serviceMap = new HashMap<>();
+		for (RemoteNode clusterNode : remoteNodes) {
+			for (String service : clusterNode.getServices()) {
+				serviceMap.putIfAbsent(service, new ArrayList<>());
+				serviceMap.get(service).add(clusterNode);
+			}
+		}
+		clusterServicesByName = serviceMap;
 	}
 
 
@@ -140,18 +185,38 @@ public class ClusterImpl implements Cluster {
 	}
 
 	@Override
+	public void registerService(AbstractClusterService clusterService) {
+		localServices.put(clusterService.getServiceName(), clusterService);
+		localNode.getServices().add(clusterService.getServiceName());
+		sendMessageToAllNodes(getClusterInfo(), false);
+	}
+
+	@Override
 	public boolean isServiceAvailable(String serviceName) {
-		return false;
+		List<RemoteNode> nodesWithService = clusterServicesByName.getOrDefault(serviceName, Collections.emptyList());
+		return !nodesWithService.isEmpty();
+	}
+
+	public RemoteNode getRandomServiceProvider(String serviceName) {
+		List<RemoteNode> nodesWithService = clusterServicesByName.getOrDefault(serviceName, Collections.emptyList()).stream().filter(RemoteNode::isConnected).collect(Collectors.toList());
+		return Utils.randomListEntry(nodesWithService);
 	}
 
 	@Override
-	public void registerService(String serviceName, ClusterService service) {
-
+	public <REQUEST extends MessageObject, RESPONSE extends MessageObject> RESPONSE executeServiceMethod(String serviceName, String method, REQUEST request, PojoObjectDecoder<RESPONSE> responseDecoder) {
+		RemoteNode serviceProvider = getRandomServiceProvider(serviceName);
+		LOGGER.info("Execute cluster method: {}, {}", serviceName, method);
+		if (serviceProvider == null) {
+			LOGGER.info("Service method not executed: missing service provider: {}", serviceName);
+			return null;
+		} else {
+			RESPONSE response = serviceProvider.executeServiceMethod(serviceName, method, request, responseDecoder);
+			return response;
+		}
 	}
 
-	@Override
-	public void removeService(String serviceName) {
-
+	private void sendMessageToAllNodes(MessageObject message, boolean resendOnError) {
+		remoteNodes.forEach(node -> node.sendMessage(message, resendOnError));
 	}
 
 	@Override
@@ -159,6 +224,8 @@ public class ClusterImpl implements Cluster {
 		RemoteNode remoteNode = getRemoteNode(nodeId);
 		if (remoteNode != null) {
 			remoteNode.sendMessage(message, false);
+		} else {
+			LOGGER.info("Cannot send message to missing nose: {}", nodeId);
 		}
 	}
 
@@ -169,23 +236,46 @@ public class ClusterImpl implements Cluster {
 
 	@Override
 	public void handleMessage(MessageObject message, RemoteNode node) {
-
+		String modelUuid = message.getModel().getModelUuid();
+		List<ClusterMessageHandler<? extends MessageObject>> clusterMessageHandlers = messageHandlersByModelUuid.get(modelUuid);
+		if (clusterMessageHandlers != null) {
+			clusterMessageHandlers.forEach(handler -> handler.handleMessage(message, node.getNodeId(), executor));
+		}
 	}
 
 	@Override
 	public void handleTopicMessage(String topic, MessageObject message, RemoteNode node) {
-
+		List<ClusterMessageHandler<? extends MessageObject>> clusterMessageHandlers = messageHandlersByTopic.get(topic);
+		if (clusterMessageHandlers != null) {
+			clusterMessageHandlers.forEach(handler -> handler.handleMessage(message, node.getNodeId(), executor));
+		}
 	}
 
 	@Override
-	public <REQUEST extends MessageObject, RESPONSE extends MessageObject> RESPONSE executeClusterServiceMethod(String service, String serviceMethod, REQUEST request, PojoObjectDecoder<RESPONSE> responseDecoder) {
-		return null;
+	public <MESSAGE extends MessageObject> void registerMessageHandler(MessageHandler<MESSAGE> messageHandler, PojoObjectDecoder<MESSAGE> messageDecoder) {
+		messageHandlersByModelUuid.computeIfAbsent(messageDecoder.getMessageObjectUuid(), s -> new ArrayList<>()).add(new ClusterMessageHandler<>(messageHandler, messageDecoder));
+	}
+
+	@Override
+	public <MESSAGE extends MessageObject> void registerTopicHandler(String topic, MessageHandler<MESSAGE> messageHandler, PojoObjectDecoder<MESSAGE> messageDecoder) {
+		messageHandlersByTopic.computeIfAbsent(topic, s -> new ArrayList<>()).add(new ClusterMessageHandler<>(messageHandler, messageDecoder));
 	}
 
 	@Override
 	public MessageObject handleClusterServiceMethod(String service, String serviceMethod, MessageObject requestData) {
-		return null;
+		AbstractClusterService clusterService = localServices.get(service);
+		if (clusterService != null) {
+			return clusterService.handleMessage(serviceMethod, requestData);
+		} else {
+			LOGGER.warn("Cannot handle cluster service method: missing service: {}", service);
+			return null;
+		}
 	}
 
+	public void shutDown() {
+		for (RemoteNode clusterNode : remoteNodes) {
+			clusterNode.shutDown();
+		}
+	}
 
 }

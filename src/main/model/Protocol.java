@@ -45,6 +45,12 @@ public class Protocol implements ModelCollectionProvider {
 		clusterInfo.addSingleReference("localNode", 3, nodeInfo);
 		clusterInfo.addMultiReference("remoteNodes", 4, nodeInfo);
 
+		ObjectPropertyDefinition clusterMethodExecution = modelCollection.createModel("clusterMethodExecution", "#tac.cme");
+		clusterMethodExecution.addBooleanProperty("response", 1);
+		clusterMethodExecution.addLongProperty("requestId", 2);
+		clusterMethodExecution.addStringProperty("serviceName", 3);
+		clusterMethodExecution.addStringProperty("serviceMethod", 4);
+		clusterMethodExecution.addByteArrayProperty("data", 5);
 
 		return modelCollection;
 	}

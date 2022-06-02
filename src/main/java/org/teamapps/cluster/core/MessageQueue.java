@@ -2,8 +2,10 @@ package org.teamapps.cluster.core;
 
 import org.teamapps.protocol.schema.MessageObject;
 
+import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 public class MessageQueue {
 
@@ -11,20 +13,32 @@ public class MessageQueue {
 
 	private MessageQueueEntry lastEntry;
 
-	public boolean addMessage(MessageObject message, boolean resentOnError) {
-		MessageQueueEntry queueEntry = new MessageQueueEntry(resentOnError, message);
+	public void reuseQueue(MessageQueue queue) {
+		List<MessageQueueEntry> entries = queue.getEntries(false);
+		if (messageQueue.remainingCapacity() > entries.size()) {
+			entries.forEach(e -> messageQueue.offer(e));
+		}
+	}
+
+	public boolean addMessage(MessageQueueEntry entry) {
+		return messageQueue.offer(entry);
+	}
+
+	public boolean addMessage(MessageObject message, boolean resendOnError) {
+		MessageQueueEntry queueEntry = new MessageQueueEntry(resendOnError, message);
 		return messageQueue.offer(queueEntry);
 	}
 
-	public MessageObject getNext() {
+	public MessageQueueEntry getNext() {
 		if (lastEntry != null) {
-			return lastEntry.getMessage();
+			return lastEntry;
 		} else {
 			while (true) {
 				try {
-					messageQueue.poll(1_000, TimeUnit.MILLISECONDS);
-					lastEntry = messageQueue.take();
-					return lastEntry.getMessage();
+					lastEntry = messageQueue.poll(1_000, TimeUnit.MILLISECONDS);
+					if (lastEntry != null) {
+						return lastEntry;
+					}
 				} catch (InterruptedException ignore) { }
 			}
 		}
@@ -35,10 +49,16 @@ public class MessageQueue {
 	}
 
 	public void recycleQueue() {
-		if (lastEntry != null && !lastEntry.isResentOnError()) {
+		if (lastEntry != null && !lastEntry.isResendOnError()) {
 			lastEntry = null;
 		}
-		messageQueue.removeIf(entry -> !entry.isResentOnError());
+		messageQueue.removeIf(entry -> !entry.isResendOnError());
+	}
+
+	public List<MessageQueueEntry> getEntries(boolean includeAll) {
+		return messageQueue.stream()
+				.filter(e -> e.isResendOnError() || includeAll)
+				.collect(Collectors.toList());
 	}
 
 }
