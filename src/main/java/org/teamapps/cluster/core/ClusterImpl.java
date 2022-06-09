@@ -211,6 +211,11 @@ public class ClusterImpl implements Cluster, ClusterHandler {
 	}
 
 	@Override
+	public void registerModelCollection(ModelCollection modelCollection) {
+		modelRegistry.addModelCollection(modelCollection);
+	}
+
+	@Override
 	public boolean isServiceAvailable(String serviceName) {
 		List<RemoteNode> nodesWithService = clusterServicesByName.getOrDefault(serviceName, Collections.emptyList());
 		return !nodesWithService.isEmpty();

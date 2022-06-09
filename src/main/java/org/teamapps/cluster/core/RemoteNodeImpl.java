@@ -52,6 +52,13 @@ public class RemoteNodeImpl extends AbstractNode implements RemoteNode {
 	private ClusterInfo lastClusterInfo;
 	private AtomicLong serviceRequestIdGenerator = new AtomicLong();
 	private Map<Long, CompletableFuture<MessageObject>> serviceRequestMap = new ConcurrentHashMap<>();
+	private long sentBytes;
+	private long receivedBytes;
+	private long sentMessages;
+	private long receivedMessages;
+	private long establishedConnectionsCount;
+	private long lastConnectedTimestamp;
+
 
 	public RemoteNodeImpl(HostAddress hostAddress, ClusterHandler clusterHandler, ModelRegistry modelRegistry, File tempDir, String clusterSecret) {
 		super(hostAddress);
@@ -76,7 +83,7 @@ public class RemoteNodeImpl extends AbstractNode implements RemoteNode {
 
 	private void startKeepAliveService() {
 		scheduledExecutorService.scheduleAtFixedRate(() -> {
-			if (isConnected() && System.currentTimeMillis() - connection.lastMessageTimestamp() > 60_000) {
+			if (isConnected() && System.currentTimeMillis() - connection.getLastMessageTimestamp() > 60_000) {
 				connection.sendKeepAlive();
 			}
 		}, 90, 90, TimeUnit.SECONDS);
@@ -90,11 +97,15 @@ public class RemoteNodeImpl extends AbstractNode implements RemoteNode {
 	@Override
 	public void handleConnectionEstablished(Connection connection, ClusterInfo clusterInfo) {
 		updateClusterInfo(clusterInfo);
-		LOGGER.info("Remote connection established: {}, {}", getNodeId(), getHostAddress());
+		lastConnectedTimestamp = System.currentTimeMillis();
+		if (establishedConnectionsCount == 0) {
+			startKeepAliveService();
+		}
+		establishedConnectionsCount++;
 		this.retries = 0;
 		this.connection = connection;
 		clusterHandler.handleNodeConnected(this, clusterInfo);
-		startKeepAliveService();
+		LOGGER.info("Remote connection established: {}, {}", getNodeId(), getHostAddress());
 	}
 
 	@Override
@@ -115,6 +126,12 @@ public class RemoteNodeImpl extends AbstractNode implements RemoteNode {
 	@Override
 	public void handleConnectionClosed() {
 		LOGGER.info("Remote connection closed: {}, {}", getNodeId(), getHostAddress());
+		if (connection != null) {
+			receivedBytes += connection.getReceivedBytes();
+			receivedMessages += connection.getReceivedMessages();
+			sentBytes += connection.getSentBytes();
+			sentMessages += connection.getSentMessages();
+		}
 		connection = null;
 		retries++;
 		clusterHandler.handleNodeDisconnected(this);
@@ -174,6 +191,36 @@ public class RemoteNodeImpl extends AbstractNode implements RemoteNode {
 	@Override
 	public MessageQueue getMessageQueue() {
 		return messageQueue;
+	}
+
+	@Override
+	public long getSentBytes() {
+		return sentBytes + (connection != null ? connection.getSentBytes() : 0);
+	}
+
+	@Override
+	public long getReceivedBytes() {
+		return receivedBytes + (connection != null ? connection.getReceivedBytes() : 0);
+	}
+
+	@Override
+	public long getSentMessages() {
+		return sentMessages + (connection != null ? connection.getSentMessages() : 0);
+	}
+
+	@Override
+	public long getReceivedMessages() {
+		return receivedMessages + (connection != null ? connection.getReceivedMessages() : 0);
+	}
+
+	@Override
+	public long getReconnects() {
+		return establishedConnectionsCount - 1;
+	}
+
+	@Override
+	public long getConnectedSince() {
+		return lastConnectedTimestamp;
 	}
 
 	@Override

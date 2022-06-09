@@ -28,11 +28,15 @@ public interface Connection extends FileProvider, FileSink {
 
 	void close();
 
-	long lastMessageTimestamp();
+	long getLastMessageTimestamp();
 
-	long sendBytes();
+	long getSentBytes();
 
-	long receivedBytes();
+	long getReceivedBytes();
+
+	long getSentMessages();
+
+	long getReceivedMessages();
 
 	void sendKeepAlive();
 

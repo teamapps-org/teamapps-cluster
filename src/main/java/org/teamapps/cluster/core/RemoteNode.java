@@ -42,4 +42,16 @@ public interface RemoteNode extends Node, ConnectionHandler {
 	void shutDown();
 
 	MessageQueue getMessageQueue();
+
+	long getSentBytes();
+
+	long getReceivedBytes();
+
+	long getSentMessages();
+
+	long getReceivedMessages();
+
+	long getReconnects();
+
+	long getConnectedSince();
 }

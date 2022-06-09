@@ -55,6 +55,8 @@ public class NetworkConnection implements Connection {
 	private long lastMessageTimestamp;
 	private long sentBytes;
 	private long receivedBytes;
+	private long sentMessages;
+	private long receivedMessages;
 
 
 	public NetworkConnection(Socket socket, MessageQueue messageQueue, ConnectionHandler connectionHandler, ModelRegistry modelRegistry, File tempDir, String clusterSecret) {
@@ -118,6 +120,7 @@ public class NetworkConnection implements Connection {
 						byte[] messageData = aesCipher.decrypt(data);
 						handleMessageData(messageData);
 						receivedBytes += messageSize + 4;
+						receivedMessages++;
 						lastMessageTimestamp = System.currentTimeMillis();
 					} else {
 						close();
@@ -214,6 +217,7 @@ public class NetworkConnection implements Connection {
 			dataOutputStream.write(bytes);
 			dataOutputStream.flush();
 			sentBytes += bytes.length + 4;
+			sentMessages++;
 			lastMessageTimestamp = System.currentTimeMillis();
 		} catch (Exception e) {
 			close();
@@ -247,18 +251,28 @@ public class NetworkConnection implements Connection {
 	}
 
 	@Override
-	public long lastMessageTimestamp() {
+	public long getLastMessageTimestamp() {
 		return lastMessageTimestamp;
 	}
 
 	@Override
-	public long sendBytes() {
+	public long getSentBytes() {
 		return sentBytes;
 	}
 
 	@Override
-	public long receivedBytes() {
+	public long getReceivedBytes() {
 		return receivedBytes;
+	}
+
+	@Override
+	public long getSentMessages() {
+		return sentMessages;
+	}
+
+	@Override
+	public long getReceivedMessages() {
+		return receivedMessages;
 	}
 
 	@Override
