@@ -30,10 +30,14 @@ import java.util.concurrent.ConcurrentHashMap;
 public abstract class AbstractReplicatedState implements ReplicatedState {
 
 	private final String name;
-	private final ReplicatedStateHandler handler;
+	private ReplicatedStateHandler handler;
 	private Map<String, List<MessageObject>> messageMap = new ConcurrentHashMap<>();
 	private Map<String, Map<String, MessageObject>> messageById = new ConcurrentHashMap<>();
 	private Map<String, MessageObject> propertyById = new ConcurrentHashMap<>();
+
+	public AbstractReplicatedState(String name) {
+		this.name = name;
+	}
 
 	public AbstractReplicatedState(String name, ReplicatedStateHandler handler) {
 		this.name = name;
@@ -45,8 +49,16 @@ public abstract class AbstractReplicatedState implements ReplicatedState {
 		return name;
 	}
 
+	public void setHandler(ReplicatedStateHandler handler) {
+		this.handler = handler;
+	}
+
+	public ReplicatedStateHandler getHandler() {
+		return handler;
+	}
+
 	@Override
-	public void handleStateMachineUpdate(StateUpdate update) {
+	public synchronized void handleStateMachineUpdate(StateUpdate update) {
 		List<ReplicatedStateTransactionRule> transactionConditions = update.getTransactionConditions();
 		if (transactionConditions != null) {
 			for (ReplicatedStateTransactionRule condition : transactionConditions) {
@@ -106,6 +118,7 @@ public abstract class AbstractReplicatedState implements ReplicatedState {
 				} else {
 					messageById.get(subStateId).put(identifier, message);
 					messageMap.computeIfAbsent(subStateId, s -> new ArrayList<>()).add(message);
+					handler.handleEntryUpdated(subStateId, message, null);
 				}
 			}
 			case REMOVE -> {

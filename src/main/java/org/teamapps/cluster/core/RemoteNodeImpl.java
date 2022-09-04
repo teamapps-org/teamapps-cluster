@@ -228,7 +228,7 @@ public class RemoteNodeImpl extends AbstractNode implements RemoteNode {
 		if (isConnected() && message != null) {
 			addMessageToSendQueue(new MessageQueueEntry(resendOnError, message));
 		} else {
-			LOGGER.warn("Cannot send message, connected: {}, message: {}", isConnected(), message != null ? message.getName() : "is NULL!");
+			LOGGER.warn("Cannot send message, connected: {}, message: {}", isConnected(), message != null ? message.getMessageDefName() : "is NULL!");
 		}
 	}
 

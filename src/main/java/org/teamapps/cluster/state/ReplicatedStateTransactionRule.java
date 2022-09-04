@@ -27,7 +27,7 @@ public class ReplicatedStateTransactionRule {
 	private final int value;
 
 
-	private ReplicatedStateTransactionRule(String subStateId, String identifier, TransactionCompareRule compareRule, int value) {
+	public ReplicatedStateTransactionRule(String subStateId, String identifier, TransactionCompareRule compareRule, int value) {
 		this.subStateId = subStateId;
 		this.identifier = identifier;
 		this.compareRule = compareRule;

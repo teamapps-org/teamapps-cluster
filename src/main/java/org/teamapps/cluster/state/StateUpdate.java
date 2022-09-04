@@ -42,16 +42,20 @@ public class StateUpdate {
 
 	public StateUpdate(String stateMachine, StateUpdateMessage stateUpdateMessage) {
 		this.stateMachine = stateMachine;
-		this.updateId = updateId;
 		this.stateUpdateMessages = Collections.singletonList(stateUpdateMessage);
 		this.transactionConditions = null;
 	}
 
 	public StateUpdate(String stateMachine, List<StateUpdateMessage> stateUpdateMessages) {
 		this.stateMachine = stateMachine;
-		this.updateId = updateId;
 		this.stateUpdateMessages = stateUpdateMessages;
 		this.transactionConditions = null;
+	}
+
+	public StateUpdate(String stateMachine, List<StateUpdateMessage> stateUpdateMessages, List<ReplicatedStateTransactionRule> transactionConditions) {
+		this.stateMachine = stateMachine;
+		this.stateUpdateMessages = stateUpdateMessages;
+		this.transactionConditions = transactionConditions;
 	}
 
 	public StateUpdate(DataInputStream dis, ModelRegistry modelRegistry, FileProvider fileProvider) throws IOException {
