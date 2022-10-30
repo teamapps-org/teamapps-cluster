@@ -22,6 +22,8 @@ package org.teamapps.cluster.core;
 import org.teamapps.cluster.protocol.ClusterInfo;
 import org.teamapps.protocol.schema.MessageObject;
 
+import java.util.function.Consumer;
+
 public interface ClusterHandler {
 
 	ClusterInfo getClusterInfo();
@@ -36,7 +38,7 @@ public interface ClusterHandler {
 
 	void handleTopicMessage(String topic, MessageObject message, RemoteNode node);
 
-	MessageObject handleClusterServiceMethod(String service, String serviceMethod, MessageObject requestData);
+	void handleClusterServiceMethod(String service, String serviceMethod, MessageObject requestData, Consumer<MessageObject> resultHandler);
 
 
 }

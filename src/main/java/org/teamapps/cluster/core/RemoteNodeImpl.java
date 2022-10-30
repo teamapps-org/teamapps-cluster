@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 public class RemoteNodeImpl extends AbstractNode implements RemoteNode {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
@@ -147,9 +148,11 @@ public class RemoteNodeImpl extends AbstractNode implements RemoteNode {
 
 	@Override
 	public void handleClusterExecutionRequest(String serviceName, String serviceMethod, MessageObject message, long requestId) {
-		MessageObject result = clusterHandler.handleClusterServiceMethod(serviceName, serviceMethod, message);
-		//todo handle exceptions, null messages...
-		addMessageToSendQueue(new MessageQueueEntry(true, true, result, serviceName, serviceMethod, true, requestId));
+		Consumer<MessageObject> resultHandler = messageObject -> {
+			//todo handle exceptions, null messages...
+			addMessageToSendQueue(new MessageQueueEntry(true, true, messageObject, serviceName, serviceMethod, true, requestId));
+		};
+		clusterHandler.handleClusterServiceMethod(serviceName, serviceMethod, message, resultHandler);
 	}
 
 	@Override
@@ -241,7 +244,7 @@ public class RemoteNodeImpl extends AbstractNode implements RemoteNode {
 			addMessageToSendQueue(new MessageQueueEntry(true, true, request, service, serviceMethod, false, requestId));
 			try {
 				MessageObject response = completableFuture.get();
-				return responseDecoder.remap(response);
+				return response == null ? null : responseDecoder.remap(response);
 			} catch (InterruptedException | ExecutionException e) {
 				throw new RuntimeException(e);
 			}

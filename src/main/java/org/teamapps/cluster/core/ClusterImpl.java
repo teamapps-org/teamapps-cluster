@@ -37,6 +37,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class ClusterImpl implements Cluster, ClusterHandler {
@@ -286,13 +287,17 @@ public class ClusterImpl implements Cluster, ClusterHandler {
 	}
 
 	@Override
-	public MessageObject handleClusterServiceMethod(String service, String serviceMethod, MessageObject requestData) {
+	public void handleClusterServiceMethod(String service, String serviceMethod, MessageObject requestData, Consumer<MessageObject> resultConsumer) {
 		AbstractClusterService clusterService = localServices.get(service);
+		LOGGER.info("run service:" + service + ", " + serviceMethod);
 		if (clusterService != null) {
-			return clusterService.handleMessage(serviceMethod, requestData);
+			executor.submit(() -> {
+				MessageObject result = clusterService.handleMessage(serviceMethod, requestData);
+				resultConsumer.accept(result);
+			});
 		} else {
+			resultConsumer.accept(null);
 			LOGGER.warn("Cannot handle cluster service method: missing service: {}", service);
-			return null;
 		}
 	}
 

@@ -141,12 +141,13 @@ public class NetworkConnection implements Connection {
 				try {
 					MessageQueueEntry queueEntry = messageQueue.getNext();
 					if (queueEntry.isServiceExecution()) {
+						byte[] value = queueEntry.getMessage() == null ? null : queueEntry.getMessage().toBytes(this);
 						ClusterMethodExecution clusterMethodExecution = new ClusterMethodExecution()
 								.setRequestId(queueEntry.getRequestId())
 								.setServiceName(queueEntry.getServiceName())
 								.setServiceMethod(queueEntry.getServiceMethod())
 								.setResponse(queueEntry.isServiceResponse())
-								.setData(queueEntry.getMessage().toBytes(this));
+								.setData(value);
 						byte[] bytes = clusterMethodExecution.toBytes();
 						byte[] data = aesCipher.encrypt(bytes);
 						writeData(data);
@@ -190,7 +191,7 @@ public class NetworkConnection implements Connection {
 	}
 
 	private void handleClusterMethodExecution(ClusterMethodExecution methodExecution) throws IOException {
-		MessageObject messageObject = new MessageObject(methodExecution.getData(), modelRegistry, this, null);
+		MessageObject messageObject = methodExecution.getData() == null ? null : new MessageObject(methodExecution.getData(), modelRegistry, this, null);
 		if (!methodExecution.isResponse()) {
 			connectionHandler.handleClusterExecutionRequest(methodExecution.getServiceName(), methodExecution.getServiceMethod(), messageObject, methodExecution.getRequestId());
 
