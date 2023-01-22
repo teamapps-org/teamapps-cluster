@@ -52,6 +52,13 @@ public class Protocol implements ModelCollectionProvider {
 		clusterMethodExecution.addStringProperty("serviceMethod", 4);
 		clusterMethodExecution.addByteArrayProperty("data", 5);
 
+		ObjectPropertyDefinition testMesage = modelCollection.createModel("testMesage", "cl.testMessage", 1, "Test-Message", null);
+		testMesage.addStringProperty("test", 1);
+
+		ProtocolServiceSchema testServiceSchema = modelCollection.createProtocolServiceSchema("TestServiceSchema");
+
+		testServiceSchema.addMethod("testMethod", testMesage, testMesage);
+
 		return modelCollection;
 	}
 }
