@@ -10,6 +10,7 @@ import org.teamapps.message.protocol.message.Message;
 import java.io.*;
 import java.lang.invoke.MethodHandles;
 import java.net.Socket;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -49,7 +50,7 @@ public class ClusterConnection implements FileDataWriter, FileDataReader {
 		startWriterThread();
 	}
 
-	public ClusterConnection(Cluster cluster, ClusterNodeData peerNode) {
+	public ClusterConnection(Cluster cluster, ClusterNodeData peerNode, List<String> localServices) {
 		this.cluster = cluster;
 		this.aesCipher = new AesCipher(cluster.getClusterConfig().getClusterSecret());
 		this.remoteHostAddress = peerNode;
@@ -57,9 +58,10 @@ public class ClusterConnection implements FileDataWriter, FileDataReader {
 		this.incomingConnection = false;
 		connect(peerNode);
 		if (connected) {
+			String[] localServicesArray = localServices.isEmpty() ? null : localServices.toArray(localServices.toArray(new String[0]));
 			startReaderThread();
 			startWriterThread();
-			writeDirectMessage(new ClusterConnectionRequest().setLocalNode(cluster.getLocalNode()));
+			writeDirectMessage(new ClusterConnectionRequest().setLocalNode(cluster.getLocalNode()).setLocalServices(localServicesArray));
 		}
 	}
 
@@ -96,19 +98,16 @@ public class ClusterConnection implements FileDataWriter, FileDataReader {
 						byte[] messageData = aesCipher.decrypt(data);
 						Message message = new Message(messageData);
 						switch (message.getMessageDefUuid()) {
-							case ClusterMessageFilePart.OBJECT_UUID -> {
-								handleClusterMessageFilePart(ClusterMessageFilePart.remap(message));
-							}
-
-							case ClusterConnectionRequest.OBJECT_UUID -> {
-								handleClusterConnectionRequest(ClusterConnectionRequest.remap(message));
-							}
-							case ClusterConnectionResult.OBJECT_UUID -> {
-								handleClusterConnectionResult(ClusterConnectionResult.remap(message));
-							}
+							case ClusterServiceMethodRequest.OBJECT_UUID -> handleClusterServiceMethodRequest(ClusterServiceMethodRequest.remap(message));
+							case ClusterServiceMethodResult.OBJECT_UUID -> handleClusterServiceMethodResult(ClusterServiceMethodResult.remap(message));
+							case ClusterMessageFilePart.OBJECT_UUID -> handleClusterMessageFilePart(ClusterMessageFilePart.remap(message));
+							case ClusterAvailableServicesUpdate.OBJECT_UUID -> handleClusterAvailableServicesUpdate(ClusterAvailableServicesUpdate.remap(message));
+							case ClusterNewPeerInfo.OBJECT_UUID -> handleClusterNewPeerInfo(ClusterNewPeerInfo.remap(message));
+							case ClusterConnectionRequest.OBJECT_UUID -> handleClusterConnectionRequest(ClusterConnectionRequest.remap(message));
+							case ClusterConnectionResult.OBJECT_UUID -> handleClusterConnectionResult(ClusterConnectionResult.remap(message));
 
 							case ClusterNodeShutDownInfo.OBJECT_UUID -> {
-								LOGGER.info("Cluster peer is shutting down {}:{}", remoteHostAddress.getHost(), remoteHostAddress.getPort());
+								LOGGER.info("Cluster node {} - cluster peer is shutting down {}:{}", cluster.getLocalNode().getNodeId(), remoteHostAddress.getHost(), remoteHostAddress.getPort());
 								close();
 							}
 						}
@@ -128,14 +127,29 @@ public class ClusterConnection implements FileDataWriter, FileDataReader {
 		thread.start();
 	}
 
+	private void handleClusterNewPeerInfo(ClusterNewPeerInfo newPeerInfo) {
+		cluster.handleClusterNewPeerInfo(newPeerInfo, clusterNode);
+	}
+
+	private void handleClusterAvailableServicesUpdate(ClusterAvailableServicesUpdate availableServicesUpdate) {
+		cluster.handleClusterAvailableServicesUpdate(availableServicesUpdate, clusterNode);
+	}
+
 	private void handleClusterConnectionRequest(ClusterConnectionRequest request) {
-		ClusterNodeData remoteNode = request.getLocalNode();
-		ClusterConnectionResult connectionResult = cluster.handleConnectionRequest(remoteNode, this);
+		ClusterConnectionResult connectionResult = cluster.handleConnectionRequest(request, this);
 		writeDirectMessage(connectionResult);
 	}
 
 	private void handleClusterConnectionResult(ClusterConnectionResult result) {
 		cluster.handleConnectionResult(result, result.getLocalNode(), this);
+	}
+
+	private void handleClusterServiceMethodRequest(ClusterServiceMethodRequest request) {
+		cluster.handleServiceMethodExecutionRequest(request, clusterNode);
+	}
+
+	private void handleClusterServiceMethodResult(ClusterServiceMethodResult result) {
+		cluster.handleServiceMethodExecutionResult(result, clusterNode);
 	}
 
 	private void startWriterThread() {
@@ -161,7 +175,7 @@ public class ClusterConnection implements FileDataWriter, FileDataReader {
 
 	public void writeMessage(Message message) {
 		if (!messageQueue.offer(message)) {
-			LOGGER.warn("Error connection message queue is full:" + remoteHostAddress.getHost() + ":" + remoteHostAddress.getPort());
+			LOGGER.warn("Cluster node {} - error: connection message queue is full: {}:{}", cluster.getLocalNode().getNodeId(), remoteHostAddress.getHost(), remoteHostAddress.getPort());
 			close();
 		}
 	}
@@ -195,7 +209,7 @@ public class ClusterConnection implements FileDataWriter, FileDataReader {
 		try {
 			long length = appendFileTransferData(filePart.getFileId(), filePart.getData(), filePart.isInitialMessage());
 			if (filePart.isLastMessage() && length != filePart.getTotalLength()) {
-				LOGGER.error("Wrong cluster message file size, expected: {}, actual: {}", filePart.getTotalLength(), length);
+				LOGGER.error("Cluster node {} - wrong cluster message file size, expected: {}, actual: {}", cluster.getLocalNode().getNodeId(), filePart.getTotalLength(), length);
 				close();
 			}
 		} catch (IOException e) {
@@ -272,7 +286,7 @@ public class ClusterConnection implements FileDataWriter, FileDataReader {
 		if (!connected) {
 			return;
 		}
-		LOGGER.info("Closed connection {}:{}", remoteHostAddress.getHost(), remoteHostAddress.getPort());
+		LOGGER.info("Cluster node {} - closed connection {}:{}", cluster.getLocalNode().getNodeId(), remoteHostAddress.getHost(), remoteHostAddress.getPort());
 		try {
 			connected = false;
 			if (socket != null) {

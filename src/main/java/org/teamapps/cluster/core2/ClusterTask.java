@@ -1,5 +1,6 @@
 package org.teamapps.cluster.core2;
 
+import org.teamapps.cluster.message.protocol.ClusterServiceMethodErrorType;
 import org.teamapps.message.protocol.message.Message;
 
 import java.util.concurrent.CompletableFuture;
@@ -19,7 +20,10 @@ public class ClusterTask {
 	private String processingNodeId;
 	private int executionAttempts;
 	private Message result;
-	private volatile boolean consumed;
+	private volatile boolean error;
+	private ClusterServiceMethodErrorType errorType;
+	private String errorMessage;
+	private String errorStackTrace;
 
 	public ClusterTask(String serviceName, String method, Message request) {
 		this.serviceName = serviceName;
@@ -62,14 +66,6 @@ public class ClusterTask {
 		this.processingNodeId = processingNodeId;
 	}
 
-	public boolean isConsumed() {
-		return consumed;
-	}
-
-	public void setConsumed(boolean consumed) {
-		this.consumed = consumed;
-	}
-
 	public Message getResult() {
 		return result;
 	}
@@ -91,5 +87,35 @@ public class ClusterTask {
 		}
 	}
 
+	public boolean isError() {
+		return error;
+	}
 
+	public void setError(boolean error) {
+		this.error = error;
+	}
+
+	public ClusterServiceMethodErrorType getErrorType() {
+		return errorType;
+	}
+
+	public void setErrorType(ClusterServiceMethodErrorType errorType) {
+		this.errorType = errorType;
+	}
+
+	public String getErrorMessage() {
+		return errorMessage;
+	}
+
+	public void setErrorMessage(String errorMessage) {
+		this.errorMessage = errorMessage;
+	}
+
+	public String getErrorStackTrace() {
+		return errorStackTrace;
+	}
+
+	public void setErrorStackTrace(String errorStackTrace) {
+		this.errorStackTrace = errorStackTrace;
+	}
 }

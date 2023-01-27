@@ -13,8 +13,8 @@ public class ClusterNode {
 
 	private final Cluster cluster;
 	private final ClusterNodeData nodeData;
-	private ClusterConnection connection;
-	private int activeTasks;
+	private volatile ClusterConnection connection;
+	private volatile int activeTasks;
 
 
 	public ClusterNode(Cluster cluster, ClusterNodeData nodeData, ClusterConnection connection) {
@@ -23,7 +23,7 @@ public class ClusterNode {
 		this.connection = connection;
 		connection.setClusterNode(this);
 		init();
-		LOGGER.info("Cluster node connected: {} [{}:{}]", nodeData.getNodeId(), nodeData.getHost(), nodeData.getPort());
+		LOGGER.info("Cluster node [{}]: new peer node: {} [{}:{}]", cluster.getLocalNode().getNodeId(), nodeData.getNodeId(), nodeData.getHost(), nodeData.getPort());
 	}
 
 	private void init() {
@@ -54,12 +54,12 @@ public class ClusterNode {
 	public void handleConnectionUpdate(ClusterConnection connection) {
 		this.connection = connection;
 		connection.setClusterNode(this);
-		LOGGER.info("Cluster node reconnected: {} [{}:{}]", nodeData.getNodeId(), nodeData.getHost(), nodeData.getPort());
+		LOGGER.info("Cluster node [{}]: peer node reconnected: {} [{}:{}]", cluster.getLocalNode().getNodeId(), nodeData.getNodeId(), nodeData.getHost(), nodeData.getPort());
 	}
 
 	public synchronized void handleConnectionClosed() {
 		this.connection = null;
-		LOGGER.info("Cluster node disconnected: {} [{}:{}]", nodeData.getNodeId(), nodeData.getHost(), nodeData.getPort());
+		LOGGER.info("Cluster node [{}]: peer node disconnected: {} [{}:{}]", cluster.getLocalNode().getNodeId(), nodeData.getNodeId(), nodeData.getHost(), nodeData.getPort());
 		cluster.handleDisconnect(this);
 		if (!cluster.getScheduledExecutorService().isShutdown()) {
 			cluster.getScheduledExecutorService().schedule(() -> {
