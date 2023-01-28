@@ -38,9 +38,11 @@ public class Cluster implements ClusterServiceRegistry {
 	private ClusterConfig clusterConfig;
 	private boolean active = true;
 
-	private ThreadPoolExecutor taskExecutor = new ThreadPoolExecutor(0, 128,
+	private ThreadPoolExecutor taskExecutor = new ThreadPoolExecutor(0, Integer.MAX_VALUE,
 			60L, TimeUnit.SECONDS,
-			new ArrayBlockingQueue<>(10_000));
+			new SynchronousQueue<>());
+	private ServerSocket serverSocket;
+
 
 	public static Cluster start() {
 		Configuration configuration = Configuration.getConfiguration();
@@ -86,7 +88,7 @@ public class Cluster implements ClusterServiceRegistry {
 		}
 		Thread thread = new Thread(() -> {
 			try {
-				ServerSocket serverSocket = new ServerSocket(localNode.getPort(), 50);
+				serverSocket = new ServerSocket(localNode.getPort(), 50);
 				while (active) {
 					try {
 						Socket socket = serverSocket.accept();
@@ -114,32 +116,26 @@ public class Cluster implements ClusterServiceRegistry {
 		List<ClusterNode> existingPeerNodes = new ArrayList<>(clusterNodeMap.values())
 				.stream()
 				.filter(node -> !node.getNodeData().getNodeId().equals(localNode.getNodeId()))
+				.filter(node -> node.getNodeData().getPort() > 0)
 				.toList();
 		List<ClusterNodeData> knownPeers = existingPeerNodes.stream()
 				.map(ClusterNode::getNodeData)
 				.collect(Collectors.toList());
 
-		if (clusterNode == null) {
-			clusterNode = new ClusterNode(this, remoteNode, connection);
-			clusterNodeMap.put(remoteNode.getNodeId(), clusterNode);
+		if (clusterNode == null || !clusterNode.isConnected()) {
+			if (clusterNode == null) {
+				clusterNode = new ClusterNode(this, remoteNode, connection);
+				clusterNodeMap.put(remoteNode.getNodeId(), clusterNode);
+			} else {
+				clusterNode.handleConnectionUpdate(connection);
+			}
+			if (nodeServices != null) {
+				updateClusterNodeServices(clusterNode, nodeServices);
+			}
 			if (remoteNode.getHost() != null && remoteNode.getPort() > 0) {
-				ClusterNewPeerInfo clusterNewPeerInfo = new ClusterNewPeerInfo()
-						.setNewPeer(remoteNode);
-				existingPeerNodes.forEach(node -> node.writeMessage(clusterNewPeerInfo));
+				sendMessageToPeerNodes(new ClusterNewPeerInfo().setNewPeer(remoteNode), remoteNode);
 			}
-			if (nodeServices != null) {
-				updateClusterNodeServices(clusterNode, nodeServices);
-			}
-			return connectionResult
-					.setAccepted(true)
-					.setKnownPeers(knownPeers)
-					.setLocalServices(localServices.isEmpty() ? null : localServices.keySet().toArray(new String[0]))
-					.setKnownServices(nodeServices);
-		} else if (!clusterNode.isConnected()) {
-			clusterNode.handleConnectionUpdate(connection);
-			if (nodeServices != null) {
-				updateClusterNodeServices(clusterNode, nodeServices);
-			}
+
 			return connectionResult
 					.setAccepted(true)
 					.setKnownPeers(knownPeers)
@@ -158,6 +154,7 @@ public class Cluster implements ClusterServiceRegistry {
 			if (clusterNode == null) {
 				clusterNode = new ClusterNode(this, remoteNode, connection);
 				clusterNodeMap.put(remoteNode.getNodeId(), clusterNode);
+				sendMessageToPeerNodes(new ClusterNewPeerInfo().setNewPeer(remoteNode), remoteNode);
 			} else if (!clusterNode.isConnected()) {
 				clusterNode.handleConnectionUpdate(connection);
 			}
@@ -192,6 +189,7 @@ public class Cluster implements ClusterServiceRegistry {
 				.setMethodName(methodRequest.getMethodName());
 		if (localService != null) {
 			taskExecutor.execute(() -> {
+				LOGGER.info("Cluster node [{}]: execute task", localNode.getNodeId());
 				try {
 					Message message = localService.handleMessage(methodRequest.getMethodName(), methodRequest.getRequestMessage());
 					methodResult.setResultMessage(message);
@@ -220,20 +218,24 @@ public class Cluster implements ClusterServiceRegistry {
 
 	protected void handleServiceMethodExecutionResult(ClusterServiceMethodResult methodResult, ClusterNode clusterNode) {
 		LOGGER.info("Cluster node [{}]: handle service method result {}/{} from {}", localNode.getNodeId(), methodResult.getServiceName(), methodResult.getMethodName(), clusterNode.getNodeData().getNodeId());
-		ClusterTask clusterTask = pendingServiceRequestsMap.remove(methodResult.getClusterTaskId());
+		ClusterTask clusterTask = pendingServiceRequestsMap.get(methodResult.getClusterTaskId());
 		if (clusterTask != null) {
 			clusterTask.setError(methodResult.isError());
 			clusterTask.setErrorType(methodResult.getErrorType());
 			clusterTask.setErrorMessage(methodResult.getErrorMessage());
 			clusterTask.setErrorStackTrace(methodResult.getErrorStackTrace());
+			if (!methodResult.isError() && methodResult.getResultMessage() != null) {
+				clusterTask.setFinished(true);
+			}
 			clusterTask.setResult(methodResult.getResultMessage());
 		}
 	}
 
 	protected void handleClusterNewPeerInfo(ClusterNewPeerInfo newPeerInfo, ClusterNode clusterNode) {
-		//todo implement!
+		if (!clusterNodeMap.containsKey(newPeerInfo.getNewPeer().getNodeId())) {
+			connectNode(newPeerInfo.getNewPeer());
+		}
 	}
-
 
 
 	protected void handleClusterAvailableServicesUpdate(ClusterAvailableServicesUpdate availableServicesUpdate, ClusterNode clusterNode) {
@@ -267,13 +269,15 @@ public class Cluster implements ClusterServiceRegistry {
 		servicesByNode.put(clusterNode, services);
 	}
 
-	private void connectNode(ClusterNodeData peerNode) {
+	protected void connectNode(ClusterNodeData peerNode) {
 		new ClusterConnection(this, peerNode, new ArrayList<>(localServices.keySet()));
 	}
 
-	private synchronized void sendMessageToPeerNodes(Message message) {
-		LOGGER.info("Cluster node [{}]: send to peer nodes: {}, message: {}", localNode.getNodeId(), clusterNodeMap.size(), message.getMessageDefUuid());
-		clusterNodeMap.values().forEach(node -> node.writeMessage(message));
+	private synchronized void sendMessageToPeerNodes(Message message, ClusterNodeData... excludingNodes) {
+		Set<String> excludeSet = excludingNodes == null ? new HashSet<>() : Arrays.stream(excludingNodes).map(ClusterNodeData::getNodeId).collect(Collectors.toSet());
+		List<ClusterNode> peerNodes = clusterNodeMap.values().stream().filter(node -> node.isConnected() && !excludeSet.contains(node.getNodeData().getNodeId())).collect(Collectors.toList());
+		LOGGER.info("Cluster node [{}]: send to peer nodes: {}, message: {}", localNode.getNodeId(), peerNodes.size(), message.getMessageDefUuid());
+		peerNodes.forEach(node -> node.writeMessage(message));
 	}
 
 
@@ -302,27 +306,35 @@ public class Cluster implements ClusterServiceRegistry {
 		LOGGER.info("Cluster node: {} - execute service method {}/{}", localNode.getNodeId(), serviceName, method);
 		ClusterTask clusterTask = new ClusterTask(serviceName, method, request);
 		pendingServiceRequestsMap.put(clusterTask.getTaskId(), clusterTask);
-		executeClusterTask(clusterTask);
-		clusterTask.waitForResult();
-		pendingServiceRequestsMap.remove(clusterTask.getTaskId());
-		Message clusterTaskResult = clusterTask.getResult();
-		if (clusterTaskResult == null) {
-			throw new RuntimeException("Error: execute cluster service method failed:" + serviceName + ", " + method);
-		} else {
-			return responseDecoder.remap(clusterTaskResult);
+		while (!clusterTask.isFinished()) {
+			clusterTask.startProcessing();
+			executeClusterTask(clusterTask);
+			clusterTask.waitForResult();
+			if (clusterTask.isFinished()) {
+				pendingServiceRequestsMap.remove(clusterTask.getTaskId());
+				Message clusterTaskResult = clusterTask.getResult();
+				return responseDecoder.remap(clusterTaskResult);
+			} else if (clusterTask.isRetryLimitReached()) {
+				LOGGER.warn("Cluster node [{}]: method execution {}/{} caused error '{}' with execution attempts: {}, retry limit reached - giving up!", localNode.getNodeId(), serviceName, method, clusterTask.getErrorMessage(), clusterTask.getExecutionAttempts());
+				pendingServiceRequestsMap.remove(clusterTask.getTaskId());
+				throw new RuntimeException("Error: execute cluster service method failed:" + serviceName + ", " + method);
+			} else {
+				LOGGER.warn("Cluster node [{}]: method execution {}/{} caused error '{}' with execution attempts: {}, will retry...", localNode.getNodeId(), serviceName, method, clusterTask.getErrorMessage(), clusterTask.getExecutionAttempts());
+			}
 		}
+		throw new RuntimeException("Error: execute cluster service method failed:" + serviceName + ", " + method);
 	}
 
 
 	private void executeClusterTask(ClusterTask clusterTask) {
-		clusterTask.addExecutionAttempt();
-		if (clusterTask.getExecutionAttempts() > 3) {
+		if (clusterTask.isRetryLimitReached()) {
 			LOGGER.warn("Cluster node [{}]: Error: stop cluster task, too many retries; service: {}, method: {}", localNode.getNodeId(), clusterTask.getServiceName(), clusterTask.getMethod());
 			clusterTask.setError(true);
 			clusterTask.setErrorMessage("Error: too many retries");
 			clusterTask.setResult(null);
 			return;
 		}
+		clusterTask.addExecutionAttempt();
 
 		AbstractClusterService localService = localServices.get(clusterTask.getServiceName());
 		ClusterNode clusterNode = getBestServiceNode(clusterTask.getServiceName());
@@ -348,10 +360,14 @@ public class Cluster implements ClusterServiceRegistry {
 		taskExecutor.execute(() -> {
 			try {
 				Message message = localService.handleMessage(clusterTask.getMethod(), clusterTask.getRequest());
+				clusterTask.setFinished(true);
 				clusterTask.setResult(message);
 			} catch (Throwable e) {
+				String stackTrace = ExceptionUtils.getStackTrace(e);
+				clusterTask.setError(true);
+				clusterTask.setErrorMessage(e.getMessage());
+				clusterTask.setErrorStackTrace(stackTrace);
 				clusterTask.setResult(null);
-				//todo set error message
 				e.printStackTrace();
 			}
 		});
@@ -377,7 +393,7 @@ public class Cluster implements ClusterServiceRegistry {
 					.filter(ClusterNode::isConnected)
 					.sorted(Comparator.comparingInt(ClusterNode::getActiveTasks))
 					.toList();
-			if (!clusterNodes.isEmpty()) {
+			if (!workloadSortedServices.isEmpty()) {
 				return workloadSortedServices.get(0);
 			} else {
 				return null;
@@ -391,10 +407,14 @@ public class Cluster implements ClusterServiceRegistry {
 
 	public void shutDown() {
 		try {
+			LOGGER.info("Cluster node [{}]: shutdown cluster node", localNode.getNodeId());
 			active = false;
 			sendMessageToPeerNodes(new ClusterNodeShutDownInfo());
 			clusterNodeMap.values().forEach(ClusterNode::closeConnection);
 			scheduledExecutorService.shutdownNow();
+			if (serverSocket != null) {
+				serverSocket.close();
+			}
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -433,6 +453,11 @@ public class Cluster implements ClusterServiceRegistry {
 				.filter(node -> !connectedOnly || node.isConnected())
 				.map(ClusterNode::getNodeData)
 				.collect(Collectors.toList());
+	}
+
+	public boolean isConnected(ClusterNodeData clusterNodeData) {
+		ClusterNode clusterNode = clusterNodeMap.get(clusterNodeData.getNodeId());
+		return clusterNode != null && clusterNode.isConnected();
 	}
 
 	public synchronized List<String> getClusterNodeServices(ClusterNode clusterNode) {

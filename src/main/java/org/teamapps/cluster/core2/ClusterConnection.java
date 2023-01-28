@@ -61,7 +61,10 @@ public class ClusterConnection implements FileDataWriter, FileDataReader {
 			String[] localServicesArray = localServices.isEmpty() ? null : localServices.toArray(localServices.toArray(new String[0]));
 			startReaderThread();
 			startWriterThread();
-			writeDirectMessage(new ClusterConnectionRequest().setLocalNode(cluster.getLocalNode()).setLocalServices(localServicesArray));
+			ClusterConnectionRequest clusterConnectionRequest = new ClusterConnectionRequest()
+					.setLocalNode(cluster.getLocalNode())
+					.setLocalServices(localServicesArray);
+			writeDirectMessage(clusterConnectionRequest);
 		}
 	}
 
@@ -105,7 +108,6 @@ public class ClusterConnection implements FileDataWriter, FileDataReader {
 							case ClusterNewPeerInfo.OBJECT_UUID -> handleClusterNewPeerInfo(ClusterNewPeerInfo.remap(message));
 							case ClusterConnectionRequest.OBJECT_UUID -> handleClusterConnectionRequest(ClusterConnectionRequest.remap(message));
 							case ClusterConnectionResult.OBJECT_UUID -> handleClusterConnectionResult(ClusterConnectionResult.remap(message));
-
 							case ClusterNodeShutDownInfo.OBJECT_UUID -> {
 								LOGGER.info("Cluster node {} - cluster peer is shutting down {}:{}", cluster.getLocalNode().getNodeId(), remoteHostAddress.getHost(), remoteHostAddress.getPort());
 								close();
@@ -118,6 +120,7 @@ public class ClusterConnection implements FileDataWriter, FileDataReader {
 						close();
 					}
 				} catch (Exception e) {
+					LOGGER.info("Cluster node [{}]: close connection to {} due to read error: {}", cluster.getLocalNode().getNodeId(), clusterNode.getNodeData().getNodeId(),  e.getMessage());
 					close();
 				}
 			}
@@ -126,6 +129,7 @@ public class ClusterConnection implements FileDataWriter, FileDataReader {
 		thread.setDaemon(true);
 		thread.start();
 	}
+
 
 	private void handleClusterNewPeerInfo(ClusterNewPeerInfo newPeerInfo) {
 		cluster.handleClusterNewPeerInfo(newPeerInfo, clusterNode);
@@ -163,7 +167,8 @@ public class ClusterConnection implements FileDataWriter, FileDataReader {
 						writeData(data);
 					}
 				} catch (InterruptedException ignore) {
-				} catch (Exception exception) {
+				} catch (Exception e) {
+					LOGGER.info("Cluster node [{}]: close connection to {} due to write error: {}", cluster.getLocalNode().getNodeId(), clusterNode.getNodeData().getNodeId(), e.getMessage());
 					close();
 				}
 			}
@@ -175,7 +180,7 @@ public class ClusterConnection implements FileDataWriter, FileDataReader {
 
 	public void writeMessage(Message message) {
 		if (!messageQueue.offer(message)) {
-			LOGGER.warn("Cluster node {} - error: connection message queue is full: {}:{}", cluster.getLocalNode().getNodeId(), remoteHostAddress.getHost(), remoteHostAddress.getPort());
+			LOGGER.warn("Cluster node [{}]: error: connection message queue is full: {}:{}", cluster.getLocalNode().getNodeId(), remoteHostAddress.getHost(), remoteHostAddress.getPort());
 			close();
 		}
 	}

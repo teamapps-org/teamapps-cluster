@@ -14,13 +14,14 @@ public class ClusterTask {
 	private final String serviceName;
 	private final String method;
 	private final Message request;
-	private final CompletableFuture<Void> completableFuture;
 	private final long started;
 	private final long taskId;
+	private CompletableFuture<Void> completableFuture;
 	private String processingNodeId;
 	private int executionAttempts;
 	private Message result;
 	private volatile boolean error;
+	private volatile boolean finished;
 	private ClusterServiceMethodErrorType errorType;
 	private String errorMessage;
 	private String errorStackTrace;
@@ -29,9 +30,12 @@ public class ClusterTask {
 		this.serviceName = serviceName;
 		this.method = method;
 		this.request = request;
-		this.completableFuture = new CompletableFuture<>();
 		this.started = System.currentTimeMillis();
 		this.taskId = taskIdGenerator.incrementAndGet();
+	}
+
+	public void startProcessing() {
+		this.completableFuture = new CompletableFuture<>();
 	}
 
 	public Message getRequest() {
@@ -46,8 +50,16 @@ public class ClusterTask {
 		return taskId;
 	}
 
+	public void addExecutionAttempt() {
+		executionAttempts++;
+	}
+
 	public int getExecutionAttempts() {
 		return executionAttempts;
+	}
+
+	public boolean isRetryLimitReached() {
+		return executionAttempts >= 3;
 	}
 
 	public String getServiceName() {
@@ -73,10 +85,6 @@ public class ClusterTask {
 	public void setResult(Message result) {
 		this.result = result;
 		completableFuture.complete(null);
-	}
-
-	public void addExecutionAttempt() {
-		executionAttempts++;
 	}
 
 	public void waitForResult() {
@@ -117,5 +125,13 @@ public class ClusterTask {
 
 	public void setErrorStackTrace(String errorStackTrace) {
 		this.errorStackTrace = errorStackTrace;
+	}
+
+	public boolean isFinished() {
+		return finished;
+	}
+
+	public void setFinished(boolean finished) {
+		this.finished = finished;
 	}
 }

@@ -40,7 +40,7 @@ public class ClusterNode {
 		}, 1, 1, TimeUnit.SECONDS);
 		cluster.getScheduledExecutorService().scheduleWithFixedDelay(() -> {
 			if (!isConnected()) {
-				//try to reconnect...
+				cluster.connectNode(nodeData);
 			}
 		}, 60, 60, TimeUnit.SECONDS);
 	}
@@ -61,10 +61,16 @@ public class ClusterNode {
 		this.connection = null;
 		LOGGER.info("Cluster node [{}]: peer node disconnected: {} [{}:{}]", cluster.getLocalNode().getNodeId(), nodeData.getNodeId(), nodeData.getHost(), nodeData.getPort());
 		cluster.handleDisconnect(this);
-		if (!cluster.getScheduledExecutorService().isShutdown()) {
-			cluster.getScheduledExecutorService().schedule(() -> {
-				//try to reconnect
-			}, 3, TimeUnit.SECONDS);
+		Runnable reconnect = () -> {
+			if (!cluster.isConnected(nodeData)) {
+				cluster.connectNode(nodeData);
+			}
+		};
+		if (nodeData.getPort() > 0 && nodeData.getHost() != null && !cluster.getScheduledExecutorService().isShutdown()) {
+			cluster.getScheduledExecutorService().schedule(reconnect, 100, TimeUnit.MILLISECONDS);
+			cluster.getScheduledExecutorService().schedule(reconnect, 1, TimeUnit.SECONDS);
+			cluster.getScheduledExecutorService().schedule(reconnect, 3, TimeUnit.SECONDS);
+			cluster.getScheduledExecutorService().schedule(reconnect, 15, TimeUnit.SECONDS);
 		}
 	}
 
