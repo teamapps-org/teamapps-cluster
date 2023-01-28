@@ -19,21 +19,21 @@
  */
 package org.teamapps.cluster.state;
 
-import org.teamapps.protocol.schema.MessageObject;
+import org.teamapps.message.protocol.message.Message;
 
 public interface ReplicatedStateHandler {
 
-	void handleStateUpdated(String stateId, MessageObject state);
+	void handleStateUpdated(String stateId, Message state);
 
-	void handleEntryAdded(String list, MessageObject message);
+	void handleEntryAdded(String list, Message message);
 
-	void handleEntryRemoved(String list, MessageObject message);
+	void handleEntryRemoved(String list, Message message);
 
-	void handleEntryUpdated(String list, MessageObject currentState, MessageObject previousState);
+	void handleEntryUpdated(String list, Message currentState, Message previousState);
 
 	void handleAllEntriesRemoved(String list);
 
-	void handleFireAndForget(String list, MessageObject message);
+	void handleFireAndForget(String list, Message message);
 
 	void handleStateMachineRemoved();
 }

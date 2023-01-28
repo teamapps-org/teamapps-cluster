@@ -19,7 +19,8 @@
  */
 package org.teamapps.cluster.state;
 
-import org.teamapps.protocol.schema.MessageObject;
+
+import org.teamapps.message.protocol.message.Message;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -31,9 +32,9 @@ public abstract class AbstractReplicatedState implements ReplicatedState {
 
 	private final String name;
 	private ReplicatedStateHandler handler;
-	private Map<String, List<MessageObject>> messageMap = new ConcurrentHashMap<>();
-	private Map<String, Map<String, MessageObject>> messageById = new ConcurrentHashMap<>();
-	private Map<String, MessageObject> propertyById = new ConcurrentHashMap<>();
+	private Map<String, List<Message>> messageMap = new ConcurrentHashMap<>();
+	private Map<String, Map<String, Message>> messageById = new ConcurrentHashMap<>();
+	private Map<String, Message> propertyById = new ConcurrentHashMap<>();
 
 	public AbstractReplicatedState(String name) {
 		this.name = name;
@@ -99,7 +100,7 @@ public abstract class AbstractReplicatedState implements ReplicatedState {
 
 	private void handleUpdate(StateUpdateMessage stateUpdateMessage) {
 		ChangeOperation operation = stateUpdateMessage.getOperation();
-		MessageObject message = stateUpdateMessage.getMessage();
+		Message message = stateUpdateMessage.getMessage();
 		String subStateId = stateUpdateMessage.getSubStateId();
 		String identifier = stateUpdateMessage.getIdentifier();
 		switch (operation) {
@@ -109,7 +110,7 @@ public abstract class AbstractReplicatedState implements ReplicatedState {
 				handler.handleEntryAdded(subStateId, message);
 			}
 			case UPDATE -> {
-				MessageObject previousEntry = messageById.computeIfAbsent(subStateId, s -> new ConcurrentHashMap<>()).remove(identifier);
+				Message previousEntry = messageById.computeIfAbsent(subStateId, s -> new ConcurrentHashMap<>()).remove(identifier);
 				if (previousEntry != null) {
 					messageById.get(subStateId).put(identifier, message);
 					messageMap.computeIfAbsent(subStateId, s -> new ArrayList<>()).remove(previousEntry);
@@ -122,7 +123,7 @@ public abstract class AbstractReplicatedState implements ReplicatedState {
 				}
 			}
 			case REMOVE -> {
-				MessageObject messageObject = messageById.computeIfAbsent(subStateId, s -> new ConcurrentHashMap<>()).remove(identifier);
+				Message messageObject = messageById.computeIfAbsent(subStateId, s -> new ConcurrentHashMap<>()).remove(identifier);
 				if (messageObject != null) {
 					messageMap.get(subStateId).remove(messageObject);
 					handler.handleEntryRemoved(subStateId, messageObject);
@@ -150,18 +151,18 @@ public abstract class AbstractReplicatedState implements ReplicatedState {
 	public abstract void sendStateMachineUpdate(StateUpdate update);
 
 	@Override
-	public MessageObject getEntry(String list, String identifier) {
+	public Message getEntry(String list, String identifier) {
 		return messageById.computeIfAbsent(list, s -> new ConcurrentHashMap<>()).get(identifier);
 	}
 
 	@Override
-	public List<MessageObject> getEntries(String list) {
+	public List<Message> getEntries(String list) {
 		return messageMap.get(list);
 	}
 
 	@Override
 	public int getEntryCount(String list) {
-		List<MessageObject> entries = getEntries(list);
+		List<Message> entries = getEntries(list);
 		return entries != null ? entries.size() : 0;
 	}
 
@@ -171,12 +172,12 @@ public abstract class AbstractReplicatedState implements ReplicatedState {
 	}
 
 	@Override
-	public MessageObject getProperty(String stateId) {
+	public Message getProperty(String stateId) {
 		return propertyById.get(stateId);
 	}
 
 	@Override
-	public StateUpdateMessage prepareAddEntry(String list, String identifier, MessageObject message) {
+	public StateUpdateMessage prepareAddEntry(String list, String identifier, Message message) {
 		return new StateUpdateMessage(list, ChangeOperation.ADD, identifier, message);
 	}
 
@@ -187,7 +188,7 @@ public abstract class AbstractReplicatedState implements ReplicatedState {
 
 
 	@Override
-	public StateUpdateMessage prepareUpdateEntry(String list, String identifier, MessageObject message) {
+	public StateUpdateMessage prepareUpdateEntry(String list, String identifier, Message message) {
 		return new StateUpdateMessage(list, ChangeOperation.UPDATE, identifier, message);
 	}
 
@@ -197,12 +198,12 @@ public abstract class AbstractReplicatedState implements ReplicatedState {
 	}
 
 	@Override
-	public StateUpdateMessage prepareSetState(String stateId, MessageObject message) {
+	public StateUpdateMessage prepareSetState(String stateId, Message message) {
 		return new StateUpdateMessage(stateId, ChangeOperation.SET, null, message);
 	}
 
 	@Override
-	public StateUpdateMessage prepareFireAndForget(String messageType, MessageObject message) {
+	public StateUpdateMessage prepareFireAndForget(String messageType, Message message) {
 		return new StateUpdateMessage(messageType, ChangeOperation.SEND_AND_FORGET, null, message);
 	}
 
@@ -217,7 +218,7 @@ public abstract class AbstractReplicatedState implements ReplicatedState {
 	}
 
 	@Override
-	public void addEntry(String list, String identifier, MessageObject message) {
+	public void addEntry(String list, String identifier, Message message) {
 		executeStateMachineUpdate(prepareAddEntry(list, identifier, message));
 	}
 
@@ -227,7 +228,7 @@ public abstract class AbstractReplicatedState implements ReplicatedState {
 	}
 
 	@Override
-	public void updateEntry(String list, String identifier, MessageObject message) {
+	public void updateEntry(String list, String identifier, Message message) {
 		executeStateMachineUpdate(prepareUpdateEntry(list, identifier, message));
 	}
 
@@ -237,12 +238,12 @@ public abstract class AbstractReplicatedState implements ReplicatedState {
 	}
 
 	@Override
-	public void setProperty(String stateId, MessageObject message) {
+	public void setProperty(String stateId, Message message) {
 		executeStateMachineUpdate(prepareSetState(stateId, message));
 	}
 
 	@Override
-	public void fireAndForget(String messageType, MessageObject message) {
+	public void fireAndForget(String messageType, Message message) {
 		executeStateMachineUpdate(prepareFireAndForget(messageType, message));
 	}
 }

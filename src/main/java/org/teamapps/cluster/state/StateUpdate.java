@@ -19,10 +19,10 @@
  */
 package org.teamapps.cluster.state;
 
-import org.teamapps.protocol.file.FileProvider;
-import org.teamapps.protocol.file.FileSink;
-import org.teamapps.protocol.message.MessageUtils;
-import org.teamapps.protocol.schema.ModelRegistry;
+import org.teamapps.message.protocol.file.FileDataReader;
+import org.teamapps.message.protocol.file.FileDataWriter;
+import org.teamapps.message.protocol.model.ModelRegistry;
+import org.teamapps.message.protocol.utils.MessageUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -58,7 +58,7 @@ public class StateUpdate {
 		this.transactionConditions = transactionConditions;
 	}
 
-	public StateUpdate(DataInputStream dis, ModelRegistry modelRegistry, FileProvider fileProvider) throws IOException {
+	public StateUpdate(DataInputStream dis, ModelRegistry modelRegistry, FileDataReader fileProvider) throws IOException {
 		stateMachine =  MessageUtils.readString(dis);
 		updateId = dis.readLong();
 		int size = dis.readInt();
@@ -97,12 +97,12 @@ public class StateUpdate {
 		return stateMachine;
 	}
 
-	public void write(DataOutputStream dos, FileSink fileSink) throws IOException {
+	public void write(DataOutputStream dos, FileDataWriter fileDataWriter) throws IOException {
 		MessageUtils.writeString(dos, stateMachine);
 		dos.writeLong(updateId);
 		dos.writeInt(stateUpdateMessages.size());
 		for (StateUpdateMessage stateUpdateMessage : stateUpdateMessages) {
-			stateUpdateMessage.write(dos, fileSink);
+			stateUpdateMessage.write(dos, fileDataWriter);
 		}
 		if (transactionConditions == null || transactionConditions.isEmpty()) {
 			dos.writeInt(0);
@@ -112,10 +112,10 @@ public class StateUpdate {
 		}
 	}
 
-	public byte[] toBytes(FileSink fileSink) throws IOException {
+	public byte[] toBytes(FileDataWriter fileDataWriter) throws IOException {
 		ByteArrayOutputStream bos = new ByteArrayOutputStream();
 		DataOutputStream dos = new DataOutputStream(bos);
-		write(dos, fileSink);
+		write(dos, fileDataWriter);
 		dos.flush();
 		return bos.toByteArray();
 	}

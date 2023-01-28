@@ -19,7 +19,7 @@
  */
 package org.teamapps.cluster.state;
 
-import org.teamapps.protocol.schema.MessageObject;
+import org.teamapps.message.protocol.message.Message;
 
 import java.util.List;
 
@@ -27,28 +27,28 @@ public interface ReplicatedState extends ReplicatedChangeLog {
 
 	String getName();
 
-	StateUpdateMessage prepareAddEntry(String list, String identifier, MessageObject message);
+	StateUpdateMessage prepareAddEntry(String list, String identifier, Message message);
 	StateUpdateMessage prepareRemoveEntry(String list, String identifier);
-	StateUpdateMessage prepareUpdateEntry(String list, String identifier, MessageObject message);
+	StateUpdateMessage prepareUpdateEntry(String list, String identifier, Message message);
 	StateUpdateMessage prepareRemoveAllEntries(String list);
-	StateUpdateMessage prepareSetState(String stateId, MessageObject message);
-	StateUpdateMessage prepareFireAndForget(String messageType, MessageObject message);
+	StateUpdateMessage prepareSetState(String stateId, Message message);
+	StateUpdateMessage prepareFireAndForget(String messageType, Message message);
 
 	void executeStateMachineUpdate(StateUpdateMessage... updates);
 	void executeStateMachineUpdate(StateUpdate update);
 
-	void addEntry(String list, String identifier, MessageObject message);
+	void addEntry(String list, String identifier, Message message);
 	void removeEntry(String list, String identifier);
-	void updateEntry(String list, String identifier, MessageObject message);
+	void updateEntry(String list, String identifier, Message message);
 	void removeAllEntries(String list);
-	void setProperty(String propertyId, MessageObject message);
-	void fireAndForget(String messageType, MessageObject message);
+	void setProperty(String propertyId, Message message);
+	void fireAndForget(String messageType, Message message);
 
-	MessageObject getEntry(String list, String identifier);
-	List<MessageObject> getEntries(String list);
+	Message getEntry(String list, String identifier);
+	List<Message> getEntries(String list);
 	int getEntryCount(String list);
 	List<String> getLists();
-	MessageObject getProperty(String stateId);
+	Message getProperty(String stateId);
 
 
 

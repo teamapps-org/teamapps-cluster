@@ -19,11 +19,11 @@
  */
 package org.teamapps.cluster.state;
 
-import org.teamapps.protocol.file.FileProvider;
-import org.teamapps.protocol.file.FileSink;
-import org.teamapps.protocol.message.MessageUtils;
-import org.teamapps.protocol.schema.MessageObject;
-import org.teamapps.protocol.schema.ModelRegistry;
+import org.teamapps.message.protocol.file.FileDataReader;
+import org.teamapps.message.protocol.file.FileDataWriter;
+import org.teamapps.message.protocol.message.Message;
+import org.teamapps.message.protocol.model.ModelRegistry;
+import org.teamapps.message.protocol.utils.MessageUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -35,21 +35,21 @@ public class StateUpdateMessage {
 	private final String subStateId;
 	private final ChangeOperation operation;
 	private final String identifier;
-	private final MessageObject message;
+	private final Message message;
 
 
-	public StateUpdateMessage(String subStateId, ChangeOperation operation, String identifier, MessageObject message) {
+	public StateUpdateMessage(String subStateId, ChangeOperation operation, String identifier, Message message) {
 		this.subStateId = subStateId;
 		this.operation = operation;
 		this.identifier = identifier;
 		this.message = message;
 	}
 
-	public StateUpdateMessage(DataInputStream dis, ModelRegistry modelRegistry, FileProvider fileProvider) throws IOException {
+	public StateUpdateMessage(DataInputStream dis, ModelRegistry modelRegistry, FileDataReader fileDataReader) throws IOException {
 		subStateId = MessageUtils.readString(dis);
 		operation = ChangeOperation.getById(dis.readUnsignedByte());
 		identifier = MessageUtils.readString(dis);
-		message = new MessageObject(dis, modelRegistry, fileProvider, null);
+		message = new Message(dis, modelRegistry, fileDataReader, null);
 	}
 
 	public String getSubStateId() {
@@ -64,21 +64,21 @@ public class StateUpdateMessage {
 		return identifier;
 	}
 
-	public MessageObject getMessage() {
+	public Message getMessage() {
 		return message;
 	}
 
-	public void write(DataOutputStream dos, FileSink fileSink) throws IOException {
+	public void write(DataOutputStream dos, FileDataWriter fileDataWriter) throws IOException {
 		MessageUtils.writeString(dos, subStateId);
 		dos.writeByte(operation.getId());
 		MessageUtils.writeString(dos, identifier);
-		message.write(dos, fileSink);
+		message.write(dos, fileDataWriter);
 	}
 
-	public byte[] toBytes(FileSink fileSink) throws IOException {
+	public byte[] toBytes(FileDataWriter fileDataWriter) throws IOException {
 		ByteArrayOutputStream bos = new ByteArrayOutputStream();
 		DataOutputStream dos = new DataOutputStream(bos);
-		write(dos, fileSink);
+		write(dos, fileDataWriter);
 		dos.flush();
 		return bos.toByteArray();
 	}
