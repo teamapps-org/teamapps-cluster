@@ -1,4 +1,4 @@
-package org.teamapps.cluster.core2;
+package org.teamapps.cluster.core;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;

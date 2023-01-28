@@ -1,11 +1,9 @@
-package org.teamapps.cluster.core2;
+package org.teamapps.cluster.core;
 
 import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
-import org.teamapps.cluster.message.protocol.AbstractClusterInfoService;
 import org.teamapps.cluster.message.protocol.ClusterConfig;
-import org.teamapps.cluster.message.protocol.ClusterInfoServiceClient;
 import org.teamapps.cluster.message.protocol.ClusterNodeData;
 import org.teamapps.cluster.message.test.protocol.AbstractClusterTest;
 import org.teamapps.cluster.message.test.protocol.ClusterTestClient;
@@ -13,7 +11,6 @@ import org.teamapps.cluster.message.test.protocol.TestMethodRequest;
 import org.teamapps.cluster.message.test.protocol.TestMethodResult;
 import org.teamapps.cluster.utils.ExceptionUtil;
 
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;

@@ -1,4 +1,4 @@
-package org.teamapps.cluster.core2;
+package org.teamapps.cluster.core;
 
 import org.teamapps.cluster.message.protocol.ClusterServiceMethodErrorType;
 import org.teamapps.message.protocol.message.Message;
