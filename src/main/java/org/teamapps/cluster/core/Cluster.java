@@ -4,7 +4,8 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.teamapps.cluster.message.protocol.*;
-import org.teamapps.commons.collections.CollectionsByKeyComparator;
+import org.teamapps.commons.util.collections.ByKeyComparisonResult;
+import org.teamapps.commons.util.collections.CollectionUtil;
 import org.teamapps.configuration.Configuration;
 import org.teamapps.message.protocol.message.Message;
 import org.teamapps.message.protocol.model.ModelCollection;
@@ -258,7 +259,7 @@ public class Cluster implements ClusterServiceRegistry {
 
 		List<String> previousServices = servicesByNode.get(clusterNode);
 		if (previousServices != null) {
-			CollectionsByKeyComparator<String, String> keyComparator = new CollectionsByKeyComparator<>(previousServices, services, o -> o, o -> o);
+			ByKeyComparisonResult<String, String, String> keyComparator = CollectionUtil.compareByKey(previousServices, services, o -> o, o -> o);
 			//remove services that don't exist anymore
 			keyComparator.getAEntriesNotInB().forEach(service -> nodesByServiceName.get(service).remove(clusterNode));
 			//add new services
@@ -453,6 +454,10 @@ public class Cluster implements ClusterServiceRegistry {
 				.filter(node -> !connectedOnly || node.isConnected())
 				.map(ClusterNode::getNodeData)
 				.collect(Collectors.toList());
+	}
+
+	public List<ClusterNode> getClusterNodes() {
+		return new ArrayList<>(clusterNodeMap.values());
 	}
 
 	public boolean isConnected(ClusterNodeData clusterNodeData) {

@@ -16,6 +16,10 @@ public class ClusterNode {
 	private volatile ClusterConnection connection;
 	private volatile int activeTasks;
 
+	private long sentBytes;
+	private long receivedBytes;
+	private long sentMessages;
+	private long receivedMessages;
 
 	public ClusterNode(Cluster cluster, ClusterNodeData nodeData, ClusterConnection connection) {
 		this.cluster = cluster;
@@ -58,6 +62,12 @@ public class ClusterNode {
 	}
 
 	public synchronized void handleConnectionClosed() {
+		if (this.connection != null) {
+			this.receivedBytes += connection.getReceivedBytes();
+			this.sentBytes += connection.getSentBytes();
+			this.receivedMessages += connection.getReceivedMessages();
+			this.sentMessages += connection.getSentMessages();
+		}
 		this.connection = null;
 		LOGGER.info("Cluster node [{}]: peer node disconnected: {} [{}:{}]", cluster.getLocalNode().getNodeId(), nodeData.getNodeId(), nodeData.getHost(), nodeData.getPort());
 		cluster.handleDisconnect(this);
@@ -102,5 +112,21 @@ public class ClusterNode {
 
 	public void addTask() {
 		activeTasks++;
+	}
+
+	public long getSentBytes() {
+		return connection != null ? connection.getSentBytes() + sentBytes : sentBytes;
+	}
+
+	public long getReceivedBytes() {
+		return connection != null ? connection.getReceivedBytes() + receivedBytes : receivedBytes;
+	}
+
+	public long getSentMessages() {
+		return connection != null ? connection.getSentMessages() + sentMessages : sentMessages;
+	}
+
+	public long getReceivedMessages() {
+		return connection != null ? connection.getReceivedMessages() + receivedMessages : receivedMessages;
 	}
 }
