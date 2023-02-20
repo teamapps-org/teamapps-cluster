@@ -29,7 +29,6 @@ import org.teamapps.message.protocol.message.Message;
 import java.io.*;
 import java.lang.invoke.MethodHandles;
 import java.net.Socket;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -69,7 +68,7 @@ public class ClusterConnection implements FileDataWriter, FileDataReader {
 		startWriterThread();
 	}
 
-	public ClusterConnection(Cluster cluster, ClusterNodeData peerNode, List<String> localServices) {
+	public ClusterConnection(Cluster cluster, ClusterNodeData peerNode, ClusterConnectionRequest clusterConnectionRequest) {
 		this.cluster = cluster;
 		this.aesCipher = new AesCipher(cluster.getClusterConfig().getClusterSecret());
 		this.remoteHostAddress = peerNode;
@@ -77,13 +76,10 @@ public class ClusterConnection implements FileDataWriter, FileDataReader {
 		this.incomingConnection = false;
 		connect(peerNode);
 		if (connected) {
-			String[] localServicesArray = localServices.isEmpty() ? null : localServices.toArray(localServices.toArray(new String[0]));
 			startReaderThread();
 			startWriterThread();
-			ClusterConnectionRequest clusterConnectionRequest = new ClusterConnectionRequest()
-					.setLocalNode(cluster.getLocalNode())
-					.setLocalServices(localServicesArray);
 			writeDirectMessage(clusterConnectionRequest);
+
 		}
 	}
 
@@ -118,13 +114,15 @@ public class ClusterConnection implements FileDataWriter, FileDataReader {
 						byte[] data = new byte[messageSize];
 						dataInputStream.readFully(data);
 						byte[] messageData = aesCipher.decrypt(data);
-						Message message = new Message(messageData);
+						Message message = new Message(messageData, this);
 						switch (message.getMessageDefUuid()) {
 							case ClusterServiceMethodRequest.OBJECT_UUID -> handleClusterServiceMethodRequest(ClusterServiceMethodRequest.remap(message));
 							case ClusterServiceMethodResult.OBJECT_UUID -> handleClusterServiceMethodResult(ClusterServiceMethodResult.remap(message));
+							case ClusterServiceBroadcastMessage.OBJECT_UUID -> handleClusterServiceBroadcastMessage(ClusterServiceBroadcastMessage.remap(message));
 							case ClusterMessageFilePart.OBJECT_UUID -> handleClusterMessageFilePart(ClusterMessageFilePart.remap(message));
 							case ClusterAvailableServicesUpdate.OBJECT_UUID -> handleClusterAvailableServicesUpdate(ClusterAvailableServicesUpdate.remap(message));
 							case ClusterNewPeerInfo.OBJECT_UUID -> handleClusterNewPeerInfo(ClusterNewPeerInfo.remap(message));
+							case ClusterNewLeaderInfo.OBJECT_UUID -> handleClusterNewLeaderInfo(ClusterNewLeaderInfo.remap(message));
 							case ClusterConnectionRequest.OBJECT_UUID -> handleClusterConnectionRequest(ClusterConnectionRequest.remap(message));
 							case ClusterConnectionResult.OBJECT_UUID -> handleClusterConnectionResult(ClusterConnectionResult.remap(message));
 							case ClusterNodeShutDownInfo.OBJECT_UUID -> {
@@ -149,6 +147,13 @@ public class ClusterConnection implements FileDataWriter, FileDataReader {
 		thread.start();
 	}
 
+	private void handleClusterServiceBroadcastMessage(ClusterServiceBroadcastMessage broadcastMessage) {
+		cluster.handleServiceBroadcastMessage(broadcastMessage, clusterNode);
+	}
+
+	private void handleClusterNewLeaderInfo(ClusterNewLeaderInfo newLeaderInfo) {
+		cluster.handleClusterNewLeaderInfo(newLeaderInfo, clusterNode);
+	}
 
 	private void handleClusterNewPeerInfo(ClusterNewPeerInfo newPeerInfo) {
 		cluster.handleClusterNewPeerInfo(newPeerInfo, clusterNode);

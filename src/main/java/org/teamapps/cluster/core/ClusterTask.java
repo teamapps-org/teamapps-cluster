@@ -30,11 +30,13 @@ public class ClusterTask {
 
 	private static final AtomicLong taskIdGenerator = new AtomicLong();
 
+	private final String fixedServiceNodeId;
 	private final String serviceName;
 	private final String method;
 	private final Message request;
 	private final long started;
 	private final long taskId;
+	private int maxExecutionAttempts = 3;
 	private CompletableFuture<Void> completableFuture;
 	private String processingNodeId;
 	private int executionAttempts;
@@ -46,11 +48,27 @@ public class ClusterTask {
 	private String errorStackTrace;
 
 	public ClusterTask(String serviceName, String method, Message request) {
+		this(serviceName, method, request, null);
+	}
+
+	public ClusterTask(String serviceName, String method, Message request, String fixedServiceNodeId) {
 		this.serviceName = serviceName;
 		this.method = method;
 		this.request = request;
+		this.fixedServiceNodeId = fixedServiceNodeId;
 		this.started = System.currentTimeMillis();
 		this.taskId = taskIdGenerator.incrementAndGet();
+		if (isFixedServiceNode()) {
+			maxExecutionAttempts = 2;
+		}
+	}
+
+	public boolean isFixedServiceNode() {
+		return fixedServiceNodeId != null;
+	}
+
+	public String getFixedServiceNodeId() {
+		return fixedServiceNodeId;
 	}
 
 	public void startProcessing() {
@@ -78,7 +96,7 @@ public class ClusterTask {
 	}
 
 	public boolean isRetryLimitReached() {
-		return executionAttempts >= 3;
+		return executionAttempts >= maxExecutionAttempts;
 	}
 
 	public String getServiceName() {

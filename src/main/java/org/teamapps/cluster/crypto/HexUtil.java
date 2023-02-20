@@ -19,6 +19,8 @@
  */
 package org.teamapps.cluster.crypto;
 
+import java.util.HexFormat;
+
 public class HexUtil {
 
 	public static final char[] HEX_ARRAY = new char[]{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
@@ -33,5 +35,10 @@ public class HexUtil {
 		}
 		return new String(chars);
 	}
+
+	public static byte[] hexToBytes(String hex) {
+		return HexFormat.of().parseHex(hex);
+	}
+
 
 }

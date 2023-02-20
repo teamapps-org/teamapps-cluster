@@ -7,9 +7,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -23,6 +23,7 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.teamapps.cluster.message.protocol.*;
+import org.teamapps.commons.event.Event;
 import org.teamapps.commons.util.collections.ByKeyComparisonResult;
 import org.teamapps.commons.util.collections.CollectionUtil;
 import org.teamapps.configuration.Configuration;
@@ -45,8 +46,11 @@ import java.util.stream.Collectors;
 
 public class Cluster implements ClusterServiceRegistry {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
-
 	public static final String CLUSTER_SERVICE = "clusterService";
+
+	public final Event<ClusterNodeData> onLeaderAvailable = new Event<>();
+	public final Event<List<ClusterNodeData>> onAvailableNodesChange = new Event<>();
+
 	private final ScheduledExecutorService scheduledExecutorService = Executors.newScheduledThreadPool(2);
 	private final ClusterNodeData localNode;
 	private final Map<String, ClusterNode> clusterNodeMap = new ConcurrentHashMap<>();
@@ -57,6 +61,7 @@ public class Cluster implements ClusterServiceRegistry {
 	private final File tempDir;
 	private ClusterConfig clusterConfig;
 	private boolean active = true;
+	private ClusterNodeData leaderNode;
 
 	private ThreadPoolExecutor taskExecutor = new ThreadPoolExecutor(0, Integer.MAX_VALUE,
 			60L, TimeUnit.SECONDS,
@@ -89,9 +94,14 @@ public class Cluster implements ClusterServiceRegistry {
 		localNode = new ClusterNodeData()
 				.setNodeId(clusterConfig.getNodeId() != null && !clusterConfig.getNodeId().isBlank() ? clusterConfig.getNodeId() : UUID.randomUUID().toString())
 				.setHost(clusterConfig.getHost())
-				.setPort(clusterConfig.getPort());
+				.setPort(clusterConfig.getPort())
+				.setLeaderNode(clusterConfig.isLeaderNode());
+		if (clusterConfig.isLeaderNode()) {
+			leaderNode = localNode;
+			onLeaderAvailable.fire(leaderNode);
+		}
 		tempDir = createTempDirSave();
-		LOGGER.info("Cluster node [{}]: started", localNode.getNodeId());
+		LOGGER.info("Cluster node [{}]: started {}", localNode.getNodeId(), clusterConfig.isLeaderNode() ? "as leader node" : "");
 		startServerSocket(localNode);
 		if (clusterConfig.getPeerNodes() != null) {
 			clusterConfig.getPeerNodes().stream()
@@ -130,17 +140,28 @@ public class Cluster implements ClusterServiceRegistry {
 
 	protected synchronized ClusterConnectionResult handleConnectionRequest(ClusterConnectionRequest request, ClusterConnection connection) {
 		ClusterNodeData remoteNode = request.getLocalNode();
+		LOGGER.info("Cluster node [{}]: connection requested from: {}, {}", localNode.getNodeId(), request.getLocalNode().getNodeId(), request.getLocalNode().getHost());
 		String[] nodeServices = request.getLocalServices();
 		ClusterConnectionResult connectionResult = new ClusterConnectionResult().setLocalNode(localNode);
+		if (request.getLeaderNode() != null) {
+			if (leaderNode != null && !leaderNode.getNodeId().equals(request.getLeaderNode().getNodeId())) {
+				LOGGER.error("Cluster node [{}]: error: connection requested denied from {}, {} - different leader node: {} vs {}", localNode.getNodeId(), request.getLocalNode().getNodeId(), request.getLocalNode().getHost(), leaderNode.getNodeId(), request.getLocalNode().getNodeId());
+				return connectionResult
+						.setAccepted(false);
+			} else if (leaderNode == null) {
+				leaderNode = remoteNode;
+				sendLeaderNodeUpdateToPeers();
+				onLeaderAvailable.fire(leaderNode);
+				LOGGER.info("Cluster node [{}]: new leader node: {}", localNode.getNodeId(), request.getLeaderNode().getNodeId());
+			}
+		}
 		ClusterNode clusterNode = clusterNodeMap.get(remoteNode.getNodeId());
-		List<ClusterNode> existingPeerNodes = new ArrayList<>(clusterNodeMap.values())
+		List<ClusterNodeData> knownPeers = new ArrayList<>(clusterNodeMap.values())
 				.stream()
-				.filter(node -> !node.getNodeData().getNodeId().equals(localNode.getNodeId()))
-				.filter(node -> node.getNodeData().getPort() > 0)
-				.toList();
-		List<ClusterNodeData> knownPeers = existingPeerNodes.stream()
 				.map(ClusterNode::getNodeData)
-				.collect(Collectors.toList());
+				.filter(nodeData -> !nodeData.getNodeId().equals(localNode.getNodeId()))
+				.filter(nodeData -> nodeData.getPort() > 0)
+				.toList();
 
 		if (clusterNode == null || !clusterNode.isConnected()) {
 			if (clusterNode == null) {
@@ -155,6 +176,15 @@ public class Cluster implements ClusterServiceRegistry {
 			if (remoteNode.getHost() != null && remoteNode.getPort() > 0) {
 				sendMessageToPeerNodes(new ClusterNewPeerInfo().setNewPeer(remoteNode), remoteNode);
 			}
+
+			request.getKnownPeers().stream()
+					.filter(peer -> peer.getHost() != null)
+					.filter(peer -> peer.getPort() > 0)
+					.filter(peer -> !clusterNodeMap.containsKey(peer.getNodeId()))
+					.filter(peer -> !localNode.getNodeId().equals(peer.getNodeId()))
+					.forEach(this::connectNode);
+
+			handleAvailableClusterNodesChanged();
 
 			return connectionResult
 					.setAccepted(true)
@@ -171,6 +201,17 @@ public class Cluster implements ClusterServiceRegistry {
 		if (result.isAccepted()) {
 			LOGGER.info("Cluster node [{}]: connection request accepted from: {}, {}", localNode.getNodeId(), result.getLocalNode().getNodeId(), result.getLocalNode().getHost());
 			ClusterNode clusterNode = clusterNodeMap.get(remoteNode.getNodeId());
+			if (result.getLeaderNode() != null) {
+				if (leaderNode == null) {
+					leaderNode = result.getLeaderNode();
+					sendLeaderNodeUpdateToPeers();
+					onLeaderAvailable.fire(leaderNode);
+					LOGGER.info("Cluster node [{}]: new leader node: {}", localNode.getNodeId(), result.getLeaderNode().getNodeId());
+				} else if (!leaderNode.getNodeId().equals(result.getLocalNode().getNodeId())) {
+					LOGGER.error("Cluster node [{}]: error: connection result denied from {}, {} - different leader node: {} vs {}", localNode.getNodeId(), result.getLocalNode().getNodeId(), result.getLocalNode().getHost(), leaderNode.getNodeId(), result.getLocalNode().getNodeId());
+					return;
+				}
+			}
 			if (clusterNode == null) {
 				clusterNode = new ClusterNode(this, remoteNode, connection);
 				clusterNodeMap.put(remoteNode.getNodeId(), clusterNode);
@@ -195,6 +236,7 @@ public class Cluster implements ClusterServiceRegistry {
 					sendMessageToPeerNodes(servicesUpdate);
 				}
 			}
+			handleAvailableClusterNodesChanged();
 		} else {
 			LOGGER.info("Cluster node [{}]: connection request denied from: {}, {}", localNode.getNodeId(), result.getLocalNode().getNodeId(), result.getLocalNode().getHost());
 		}
@@ -257,6 +299,15 @@ public class Cluster implements ClusterServiceRegistry {
 		}
 	}
 
+	protected void handleClusterNewLeaderInfo(ClusterNewLeaderInfo newLeaderInfo, ClusterNode clusterNode) {
+		if (leaderNode == null) {
+			leaderNode = newLeaderInfo.getLeaderNode();
+			sendLeaderNodeUpdateToPeers();
+			onLeaderAvailable.fire(leaderNode);
+			LOGGER.info("Cluster node [{}]: new leader node: {}", localNode.getNodeId(), newLeaderInfo.getLeaderNode().getNodeId());
+		}
+	}
+
 
 	protected void handleClusterAvailableServicesUpdate(ClusterAvailableServicesUpdate availableServicesUpdate, ClusterNode clusterNode) {
 		updateClusterNodeServices(clusterNode, availableServicesUpdate.getServices());
@@ -266,6 +317,20 @@ public class Cluster implements ClusterServiceRegistry {
 		pendingServiceRequestsMap.values().stream()
 				.filter(clusterTask -> Objects.equals(clusterTask.getProcessingNodeId(), clusterNode.getNodeData().getNodeId()))
 				.forEach(this::executeClusterTask);
+		handleAvailableClusterNodesChanged();
+	}
+
+
+	private void handleAvailableClusterNodesChanged() {
+		List<ClusterNodeData> availableNodes = getAvailablePeerNodes();
+		onAvailableNodesChange.fire(availableNodes);
+	}
+
+	private List<ClusterNodeData> getAvailablePeerNodes() {
+		return clusterNodeMap.values().stream()
+				.filter(ClusterNode::isConnected)
+				.map(ClusterNode::getNodeData)
+				.toList();
 	}
 
 	private void handleConfigUpdate(ClusterConfig config) {
@@ -290,16 +355,52 @@ public class Cluster implements ClusterServiceRegistry {
 	}
 
 	protected void connectNode(ClusterNodeData peerNode) {
-		new ClusterConnection(this, peerNode, new ArrayList<>(localServices.keySet()));
+		List<ClusterNodeData> knownPeers = new ArrayList<>(clusterNodeMap.values())
+				.stream()
+				.map(ClusterNode::getNodeData)
+				.filter(nodeData -> !nodeData.getNodeId().equals(localNode.getNodeId()))
+				.filter(nodeData -> nodeData.getPort() > 0)
+				.toList();
+		String[] services = localServices.keySet().toArray(new String[0]);
+		ClusterConnectionRequest clusterConnectionRequest = new ClusterConnectionRequest()
+				.setLocalNode(localNode)
+				.setLocalServices(services)
+				.setLeaderNode(leaderNode)
+				.setKnownPeers(knownPeers);
+		new ClusterConnection(this, peerNode, clusterConnectionRequest);
 	}
 
 	private synchronized void sendMessageToPeerNodes(Message message, ClusterNodeData... excludingNodes) {
 		Set<String> excludeSet = excludingNodes == null ? new HashSet<>() : Arrays.stream(excludingNodes).map(ClusterNodeData::getNodeId).collect(Collectors.toSet());
-		List<ClusterNode> peerNodes = clusterNodeMap.values().stream().filter(node -> node.isConnected() && !excludeSet.contains(node.getNodeData().getNodeId())).collect(Collectors.toList());
+		List<ClusterNode> peerNodes = clusterNodeMap.values()
+				.stream()
+				.filter(node -> node.isConnected() && !excludeSet.contains(node.getNodeData().getNodeId()))
+				.toList();
 		LOGGER.info("Cluster node [{}]: send to peer nodes: {}, message: {}", localNode.getNodeId(), peerNodes.size(), message.getMessageDefUuid());
 		peerNodes.forEach(node -> node.writeMessage(message));
 	}
 
+
+	private synchronized void sendLeaderNodeUpdateToPeers() {
+		List<ClusterNode> peerNodes = clusterNodeMap.values()
+				.stream()
+				.toList();
+		ClusterNewLeaderInfo clusterNewLeaderInfo = new ClusterNewLeaderInfo().setLeaderNode(leaderNode);
+		peerNodes.forEach(node -> node.writeMessage(clusterNewLeaderInfo));
+	}
+
+	public void sendMessage(String nodeId, Message message) {
+		ClusterNode clusterNode = clusterNodeMap.get(nodeId);
+		if (clusterNode != null) {
+			clusterNode.writeMessage(message);
+		}
+	}
+
+	public void sendMessage(List<String> nodeIds, Message message) {
+		for (String nodeId : nodeIds) {
+			sendMessage(nodeId, message);
+		}
+	}
 
 	@Override
 	public void registerService(AbstractClusterService clusterService) {
@@ -323,8 +424,13 @@ public class Cluster implements ClusterServiceRegistry {
 
 	@Override
 	public <REQUEST extends Message, RESPONSE extends Message> RESPONSE executeServiceMethod(String serviceName, String method, REQUEST request, PojoObjectDecoder<RESPONSE> responseDecoder) {
-		LOGGER.info("Cluster node: {} - execute service method {}/{}", localNode.getNodeId(), serviceName, method);
-		ClusterTask clusterTask = new ClusterTask(serviceName, method, request);
+		return executeServiceMethod(null, serviceName, method, request, responseDecoder);
+	}
+
+	@Override
+	public <REQUEST extends Message, RESPONSE extends Message> RESPONSE executeServiceMethod(String clusterNodeId, String serviceName, String method, REQUEST request, PojoObjectDecoder<RESPONSE> responseDecoder) {
+		LOGGER.info("Cluster node: {} - execute service method {}/{}" + (clusterNodeId != null ? ", on node {}" : ""), localNode.getNodeId(), serviceName, method, clusterNodeId);
+		ClusterTask clusterTask = new ClusterTask(serviceName, method, request, clusterNodeId);
 		pendingServiceRequestsMap.put(clusterTask.getTaskId(), clusterTask);
 		while (!clusterTask.isFinished()) {
 			clusterTask.startProcessing();
@@ -345,6 +451,29 @@ public class Cluster implements ClusterServiceRegistry {
 		throw new RuntimeException("Error: execute cluster service method failed:" + serviceName + ", " + method);
 	}
 
+	@Override
+	public <MESSAGE extends Message> void executeServiceBroadcast(String serviceName, String method, MESSAGE message) {
+		LOGGER.info("Cluster node: {} - execute service broadcast method {}/{}", localNode.getNodeId(), serviceName, method);
+		List<ClusterNode> clusterNodes = nodesByServiceName.get(serviceName);
+		if (clusterNodes != null) {
+			ClusterServiceBroadcastMessage broadcastMessage = new ClusterServiceBroadcastMessage()
+					.setServiceName(serviceName)
+					.setMethodName(method)
+					.setMessage(message);
+			clusterNodes.forEach(node -> node.writeMessage(broadcastMessage));
+		}
+	}
+
+	public void handleServiceBroadcastMessage(ClusterServiceBroadcastMessage broadcastMessage, ClusterNode clusterNode) {
+		String serviceName = broadcastMessage.getServiceName();
+		String method = broadcastMessage.getMethodName();
+		LOGGER.info("Cluster node [{}]: handle broadcast message from {}: {}/{}", localNode.getNodeId(), clusterNode.getNodeData().getNodeId(), serviceName, method);
+		AbstractClusterService clusterService = localServices.get(serviceName);
+		if (clusterService != null) {
+			taskExecutor.execute(() -> clusterService.handleMessage(method, broadcastMessage.getMessage()));
+		}
+	}
+
 
 	private void executeClusterTask(ClusterTask clusterTask) {
 		if (clusterTask.isRetryLimitReached()) {
@@ -357,7 +486,16 @@ public class Cluster implements ClusterServiceRegistry {
 		clusterTask.addExecutionAttempt();
 
 		AbstractClusterService localService = localServices.get(clusterTask.getServiceName());
-		ClusterNode clusterNode = getBestServiceNode(clusterTask.getServiceName());
+		ClusterNode clusterNode;
+		if (clusterTask.isFixedServiceNode()) {
+			if (localNode.getNodeId().equals(clusterTask.getFixedServiceNodeId())) {
+				clusterNode = null;
+			} else {
+				clusterNode = clusterNodeMap.get(clusterTask.getFixedServiceNodeId());
+			}
+		} else {
+			clusterNode = getBestServiceNode(clusterTask.getServiceName());
+		}
 		if (localService != null && clusterNode != null) {
 			if (getActiveTasks() <= clusterNode.getActiveTasks()) {
 				runLocalClusterTask(localService, clusterTask);
@@ -487,5 +625,13 @@ public class Cluster implements ClusterServiceRegistry {
 	public synchronized List<String> getClusterNodeServices(ClusterNode clusterNode) {
 		List<String> services = servicesByNode.get(clusterNode);
 		return new ArrayList<>(services == null ? Collections.emptyList() : services);
+	}
+
+	public ClusterNodeData getLeaderNode() {
+		return leaderNode;
+	}
+
+	public boolean isLeaderNode() {
+		return leaderNode != null && leaderNode.getNodeId().equals(localNode.getNodeId());
 	}
 }

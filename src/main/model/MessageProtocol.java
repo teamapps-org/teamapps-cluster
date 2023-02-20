@@ -40,7 +40,10 @@ public class MessageProtocol implements ModelCollectionProvider {
 		MessageDefinition clusterConnectionResult = modelCollection.createModel("clusterConnectionResult", "cluster.clusterConnectionResult");
 		MessageDefinition clusterServiceMethodRequest = modelCollection.createModel("clusterServiceMethodRequest", "cluster.clusterServiceMethodRequest");
 		MessageDefinition clusterServiceMethodResult = modelCollection.createModel("clusterServiceMethodResult", "cluster.clusterServiceMethodResult");
+		MessageDefinition clusterServiceBroadcastMessage = modelCollection.createModel("clusterServiceBroadcastMessage", "cluster.clusterServiceBroadcastMessage");
+
 		MessageDefinition clusterNodeSystemInfo = modelCollection.createModel("clusterNodeSystemInfo", "cluster.clusterNodeSystemInfo");
+		MessageDefinition clusterNewLeaderInfo = modelCollection.createModel("clusterNewLeaderInfo", "cluster.clusterNewLeaderInfo");
 		EnumDefinition clusterServiceMethodErrorType = modelCollection.createEnum("clusterServiceMethodErrorType", "NETWORK_ERROR", "SERVICE_EXCEPTION");
 
 		clusterNodeSystemInfo.addString("detailedInfo", 1);
@@ -49,6 +52,7 @@ public class MessageProtocol implements ModelCollectionProvider {
 		clusterNodeSystemInfo.addInteger("threads", 4);
 		clusterNodeSystemInfo.addLong("memorySize", 5);
 
+		clusterNewLeaderInfo.addSingleReference("leaderNode", clusterNodeData, 1);
 
 		clusterNewPeerInfo.addSingleReference("newPeer", clusterNodeData, 1);
 
@@ -68,14 +72,22 @@ public class MessageProtocol implements ModelCollectionProvider {
 		clusterServiceMethodResult.addString("errorMessage", 7);
 		clusterServiceMethodResult.addString("errorStackTrace", 8);
 
+		clusterServiceBroadcastMessage.addString("serviceName", 1);
+		clusterServiceBroadcastMessage.addString("methodName", 2);
+		clusterServiceBroadcastMessage.addGenericMessage("message",3);
+
 		clusterConnectionRequest.addSingleReference("localNode", clusterNodeData, 1);
 		clusterConnectionRequest.addStringArray("localServices", 2);
+		clusterConnectionRequest.addSingleReference("leaderNode", clusterNodeData, 3);
+		clusterConnectionRequest.addMultiReference("knownPeers", clusterNodeData, 4);
+
 
 		clusterConnectionResult.addSingleReference("localNode", clusterNodeData, 1);
 		clusterConnectionResult.addBoolean("accepted", 2);
-		clusterConnectionResult.addMultiReference("knownPeers", clusterNodeData, 3);
-		clusterConnectionResult.addStringArray("localServices", 4);
-		clusterConnectionResult.addStringArray("knownServices", 5);
+		clusterConnectionResult.addSingleReference("leaderNode", clusterNodeData, 3);
+		clusterConnectionResult.addMultiReference("knownPeers", clusterNodeData, 4);
+		clusterConnectionResult.addStringArray("localServices", 5);
+		clusterConnectionResult.addStringArray("knownServices", 6);
 
 
 		clusterInfo.addSingleReference("localNode", clusterNodeData, 1);
@@ -85,11 +97,13 @@ public class MessageProtocol implements ModelCollectionProvider {
 		clusterConfig.addString("nodeId", 2);
 		clusterConfig.addString("host", 3);
 		clusterConfig.addInteger("port", 4);
-		clusterConfig.addMultiReference("peerNodes", clusterNodeData, 5);
+		clusterConfig.addBoolean("leaderNode", 5);
+		clusterConfig.addMultiReference("peerNodes", clusterNodeData, 6);
 
 		clusterNodeData.addString("nodeId", 1);
 		clusterNodeData.addString("host", 2);
 		clusterNodeData.addInteger("port", 3);
+		clusterNodeData.addBoolean("leaderNode", 4);
 
 		clusterMessageFilePart.addString("fileId", 1);
 		clusterMessageFilePart.addLong("totalLength", 2);

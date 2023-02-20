@@ -36,9 +36,11 @@ public class MessageProtocol implements ModelCollectionProvider {
 		testMethodRequest.addBoolean("throwException", 2);
 		testMethodRequest.addString("answerPayload", 3);
 		testMethodRequest.addString("failIfNodeId", 4);
+		testMethodRequest.addFile("testFile", 5);
 
 		testMethodResult.addString("answerPayload", 1);
 		testMethodResult.addString("executingNode", 2);
+		testMethodResult.addFile("resultFile", 5);
 
 		ServiceProtocol clusterTest = modelCollection.createService("clusterTest");
 		clusterTest.addMethod("testServiceMethod", testMethodRequest, testMethodResult);
