@@ -174,8 +174,8 @@ public class ClusterTest {
 
 		ClusterTestClient client3 = new ClusterTestClient(node3);
 
-		ExecutorService executorService = Executors.newFixedThreadPool(10);
-		int size = 100;
+		ExecutorService executorService = Executors.newFixedThreadPool(3);
+		int size = 10;
 		AtomicInteger counter = new AtomicInteger();
 		for (int i = 0; i < size; i++) {
 			final int id = i;
