@@ -19,12 +19,11 @@
  */
 import org.teamapps.message.protocol.message.MessageDefinition;
 import org.teamapps.message.protocol.message.MessageModelCollection;
-import org.teamapps.message.protocol.model.EnumDefinition;
 import org.teamapps.message.protocol.model.ModelCollection;
 import org.teamapps.message.protocol.model.ModelCollectionProvider;
 import org.teamapps.message.protocol.service.ServiceProtocol;
 
-public class MessageProtocol implements ModelCollectionProvider {
+public class MessageTestProtocol implements ModelCollectionProvider {
 	@Override
 	public ModelCollection getModelCollection() {
 		MessageModelCollection modelCollection = new MessageModelCollection("clusterTestMessageProtocol", "org.teamapps.cluster.message.test.protocol", 1);

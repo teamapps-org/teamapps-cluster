@@ -56,7 +56,7 @@
         <dependency>
             <groupId>org.teamapps</groupId>
             <artifactId>teamapps-configuration-management</artifactId>
-            <version>0.2</version>
+            <version>0.3-SNAPSHOT</version>
             <scope>compile</scope>
         </dependency>
 
@@ -111,11 +111,28 @@
                 <version>0.4</version>
                 <executions>
                     <execution>
+                        <id>run-1</id>
                         <phase>generate-sources</phase>
                         <goals>
                             <goal>generate-message-protocol-api</goal>
+                        </goals>
+                        <configuration>
+                            <protocolClasses>
+                                <protocolClass>MessageProtocol</protocolClass>
+                            </protocolClasses>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>run-2</id>
+                        <phase>generate-sources</phase>
+                        <goals>
                             <goal>generate-test-message-protocol-api</goal>
                         </goals>
+                        <configuration>
+                            <protocolClasses>
+                                <protocolClass>MessageTestProtocol</protocolClass>
+                            </protocolClasses>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>

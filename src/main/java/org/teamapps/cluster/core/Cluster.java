@@ -370,6 +370,11 @@ public class Cluster implements ClusterServiceRegistry {
 		new ClusterConnection(this, peerNode, clusterConnectionRequest);
 	}
 
+	protected void sendLoadInfoMessage() {
+		ClusterLoadInfo clusterLoadInfo = new ClusterLoadInfo().setLoad(getActiveTasks());
+		sendMessageToPeerNodes(clusterLoadInfo);
+	}
+
 	private synchronized void sendMessageToPeerNodes(Message message, ClusterNodeData... excludingNodes) {
 		Set<String> excludeSet = excludingNodes == null ? new HashSet<>() : Arrays.stream(excludingNodes).map(ClusterNodeData::getNodeId).collect(Collectors.toSet());
 		List<ClusterNode> peerNodes = clusterNodeMap.values()

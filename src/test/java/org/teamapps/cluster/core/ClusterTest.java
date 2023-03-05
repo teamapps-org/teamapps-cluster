@@ -190,7 +190,66 @@ public class ClusterTest {
 			});
 		}
 		executorService.shutdown();
-		executorService.awaitTermination(1, TimeUnit.SECONDS);
+		executorService.awaitTermination(10, TimeUnit.SECONDS);
+		assertEquals(size, counter.get());
+
+		shutdownCluster(node1, node2, node3);
+	}
+
+	@Test
+	public void testServiceMethod() throws Exception {
+		Cluster node1 = createServerNode(150);
+		Cluster node2 = createServerNode(250);
+		Cluster node3 = createServerNode(350);
+
+		Cluster node4 = createClientNode(450, 150, 250, 350);
+
+		registerService(node1);
+		registerService(node2);
+		registerService(node3);
+
+		Thread.sleep(100);
+
+		Path temp = Files.createTempFile("temp", ".tmp");
+		String text = "THIS IS A TEST-FILE!";
+		Files.writeString(temp, text, StandardCharsets.UTF_8);
+		File file = temp.toFile();
+
+		assertEquals(3, node1.getPeerNodes(true).size());
+		assertEquals(3, node2.getPeerNodes(true).size());
+		assertEquals(3, node3.getPeerNodes(true).size());
+		assertEquals(3, node4.getPeerNodes(true).size());
+		assertTrue(node1.getPeerNodes(true).stream().anyMatch(clusterNodeData -> clusterNodeData.getNodeId().equals("node-250")));
+		assertTrue(node1.getPeerNodes(true).stream().anyMatch(clusterNodeData -> clusterNodeData.getNodeId().equals("node-350")));
+		assertTrue(node1.getPeerNodes(true).stream().anyMatch(clusterNodeData -> clusterNodeData.getNodeId().equals("node-450")));
+		assertTrue(node2.getPeerNodes(true).stream().anyMatch(clusterNodeData -> clusterNodeData.getNodeId().equals("node-150")));
+		assertTrue(node2.getPeerNodes(true).stream().anyMatch(clusterNodeData -> clusterNodeData.getNodeId().equals("node-350")));
+		assertTrue(node2.getPeerNodes(true).stream().anyMatch(clusterNodeData -> clusterNodeData.getNodeId().equals("node-450")));
+		assertTrue(node3.getPeerNodes(true).stream().anyMatch(clusterNodeData -> clusterNodeData.getNodeId().equals("node-150")));
+		assertTrue(node3.getPeerNodes(true).stream().anyMatch(clusterNodeData -> clusterNodeData.getNodeId().equals("node-250")));
+		assertTrue(node3.getPeerNodes(true).stream().anyMatch(clusterNodeData -> clusterNodeData.getNodeId().equals("node-450")));
+
+		ClusterTestClient client4 = new ClusterTestClient(node4);
+
+		ExecutorService executorService = Executors.newFixedThreadPool(2);
+		int size = 1000;
+		AtomicInteger counter = new AtomicInteger();
+		for (int i = 0; i < size; i++) {
+			final int id = i;
+			executorService.submit(() -> {
+				TestMethodResult testMethodResult = client4.testServiceMethod(new TestMethodRequest()
+						.setAnswerPayload("test-" + id)
+						.setExecutionDelaySeconds(0)
+								.setTestFile(file)
+						//.setFailIfNodeId(node1.getLocalNode().getNodeId())
+				);
+				assertEquals("test-" + id, testMethodResult.getAnswerPayload());
+				assertEquals(file.length(), testMethodResult.getResultFile().getLength());
+				counter.incrementAndGet();
+			});
+		}
+		executorService.shutdown();
+		executorService.awaitTermination(15, TimeUnit.SECONDS);
 		assertEquals(size, counter.get());
 
 		shutdownCluster(node1, node2, node3);

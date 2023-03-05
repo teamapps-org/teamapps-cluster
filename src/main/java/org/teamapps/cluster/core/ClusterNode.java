@@ -52,6 +52,7 @@ public class ClusterNode {
 	private void init() {
 		cluster.getScheduledExecutorService().scheduleWithFixedDelay(() -> {
 			if (isConnected()) {
+
 				/*
 					send load status:
 						available services (implicit with status)
@@ -59,11 +60,14 @@ public class ClusterNode {
 						cpu load
 						...
 				 */
+
 			}
 		}, 1, 1, TimeUnit.SECONDS);
 		cluster.getScheduledExecutorService().scheduleWithFixedDelay(() -> {
 			if (!isConnected()) {
 				cluster.connectNode(nodeData);
+			} else {
+				cluster.sendLoadInfoMessage();
 			}
 		}, 60, 60, TimeUnit.SECONDS);
 	}

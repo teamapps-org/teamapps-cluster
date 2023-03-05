@@ -41,10 +41,13 @@ public class MessageProtocol implements ModelCollectionProvider {
 		MessageDefinition clusterServiceMethodRequest = modelCollection.createModel("clusterServiceMethodRequest", "cluster.clusterServiceMethodRequest");
 		MessageDefinition clusterServiceMethodResult = modelCollection.createModel("clusterServiceMethodResult", "cluster.clusterServiceMethodResult");
 		MessageDefinition clusterServiceBroadcastMessage = modelCollection.createModel("clusterServiceBroadcastMessage", "cluster.clusterServiceBroadcastMessage");
+		MessageDefinition clusterLoadInfo = modelCollection.createModel("clusterLoadInfo", "cluster.clusterLoadInfo");
 
 		MessageDefinition clusterNodeSystemInfo = modelCollection.createModel("clusterNodeSystemInfo", "cluster.clusterNodeSystemInfo");
 		MessageDefinition clusterNewLeaderInfo = modelCollection.createModel("clusterNewLeaderInfo", "cluster.clusterNewLeaderInfo");
 		EnumDefinition clusterServiceMethodErrorType = modelCollection.createEnum("clusterServiceMethodErrorType", "NETWORK_ERROR", "SERVICE_EXCEPTION");
+
+		clusterLoadInfo.addInteger("load", 1);
 
 		clusterNodeSystemInfo.addString("detailedInfo", 1);
 		clusterNodeSystemInfo.addInteger("cpus", 2);
