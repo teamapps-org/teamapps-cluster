@@ -40,5 +40,9 @@ public class HexUtil {
 		return HexFormat.of().parseHex(hex);
 	}
 
+	public static String bytesToHex2(byte[] bytes) {
+		return HexFormat.of().formatHex(bytes);
+	}
+
 
 }
