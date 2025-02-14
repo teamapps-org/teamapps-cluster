@@ -157,7 +157,8 @@ public abstract class AbstractReplicatedState implements ReplicatedState {
 
 	@Override
 	public List<Message> getEntries(String list) {
-		return messageMap.get(list);
+		List<Message> messages = messageMap.get(list);
+		return messages == null ? null : new ArrayList<>(messages);
 	}
 
 	@Override
