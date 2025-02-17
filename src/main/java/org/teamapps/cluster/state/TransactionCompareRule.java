@@ -2,7 +2,7 @@
  * ========================LICENSE_START=================================
  * TeamApps Cluster
  * ---
- * Copyright (C) 2021 - 2023 TeamApps.org
+ * Copyright (C) 2021 - 2025 TeamApps.org
  * ---
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
