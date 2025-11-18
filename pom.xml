@@ -4,7 +4,7 @@
 
     <groupId>org.teamapps</groupId>
     <artifactId>teamapps-cluster</artifactId>
-    <version>0.14</version>
+    <version>0.15-SNAPSHOT</version>
 
     <name>TeamApps Cluster</name>
     <description>A TeamApps.org framework for building fault-tolerant distributed systems</description>
