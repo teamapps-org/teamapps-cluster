@@ -4,7 +4,7 @@
 
     <groupId>org.teamapps</groupId>
     <artifactId>teamapps-cluster</artifactId>
-    <version>0.14-SNAPSHOT</version>
+    <version>0.14</version>
 
     <name>TeamApps Cluster</name>
     <description>A TeamApps.org framework for building fault-tolerant distributed systems</description>
@@ -35,7 +35,7 @@
         <url>https://github.com/teamapps-org/teamapps-cluster</url>
         <connection>scm:git:git@github.com:teamapps-org/teamapps-cluster.git</connection>
         <developerConnection>scm:git:git@github.com:teamapps-org/teamapps-cluster.git</developerConnection>
-        <tag>HEAD</tag>
+        <tag>v0.14</tag>
     </scm>
 
 
@@ -95,7 +95,7 @@
             <plugin>
                 <groupId>org.teamapps</groupId>
                 <artifactId>teamapps-message-protocol-maven-plugin</artifactId>
-                <version>0.6-SNAPSHOT</version>
+                <version>0.6</version>
                 <executions>
                     <execution>
                         <id>run-1</id>
